@@ -29,6 +29,16 @@ router.get(dynamicPath, (ctx) => {
   return ctx.ok();
 });
 
+interface BoundModel {
+  name: string;
+  tag?: string | string[];
+}
+router.post("/bind", async (ctx) => {
+  const model = await ctx.bind<BoundModel>();
+  void (model.name satisfies string);
+  return ctx.ok();
+});
+
 type DirectParams = PathParams<"/a/{first}/b/{*rest}">;
 const directParams: DirectParams = { first: "one", rest: "two/three" };
 void directParams;

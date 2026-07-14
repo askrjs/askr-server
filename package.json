@@ -38,7 +38,8 @@
   },
   "scripts": {
     "build": "vp pack",
-    "bench": "npm run bench:dispatch && npm run bench:tier1 && npm run bench:tier2 && npm run bench:tier3 && npm run bench:tier4",
+    "bench": "npm run bench:dispatch && npm run bench:binding && npm run bench:tier1 && npm run bench:tier2 && npm run bench:tier3 && npm run bench:tier4",
+    "bench:binding": "vp test bench --run --reporter=default benches/binding.bench.ts",
     "bench:dispatch": "vp test bench --run --reporter=default benches/request-dispatch.bench.ts",
     "bench:tier1": "vp test bench --run --reporter=default --config vitest.bench.tier1.config.ts",
     "bench:tier2": "vp test bench --run --reporter=default --config vitest.bench.tier2.config.ts",

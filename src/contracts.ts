@@ -77,7 +77,7 @@ export interface ServerContext<RouteParams extends Params = Params> {
   state: RequestState;
   auth: AuthContext;
   signal: AbortSignal;
-  bind<T extends Record<string, unknown>>(): Promise<T>;
+  bind<T extends object = Record<string, unknown>>(): Promise<T>;
   json(value: JsonValue, init?: ResponseInit): Response;
   text(value: string, init?: ResponseInit): Response;
   redirect(location: string, status?: 301 | 302 | 303 | 307 | 308): Response;

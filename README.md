@@ -47,6 +47,61 @@ const app = createServerApp(router);
 This keeps dependency ownership visible, makes route modules easy to test
 with fakes, and reserves `ctx` for request-scoped capabilities.
 
+## Model binding
+
+`ctx.bind()` creates one flat model from the request. It reads each supported
+body at most once and caches the resulting object for the rest of the request.
+
+Sources are applied in this order; a later source replaces an earlier value
+when both contain the exact same key:
+
+| Priority | Source | Bound values |
+| --- | --- | --- |
+| 1 | JSON or form body | JSON values, form strings, and uploaded `File` objects |
+| 2 | Query string | Strings; repeated keys become `string[]` |
+| 3 | Request headers | Strings using the Fetch API's lowercase header names |
+| 4 | Route parameters | Decoded strings; these are authoritative |
+
+```ts
+interface UpdateUserModel {
+  id: string;
+  name?: string;
+  tag?: string | string[];
+  "if-match"?: string;
+}
+
+router.patch("/users/{id}", async (ctx) => {
+  const model = await ctx.bind<UpdateUserModel>();
+  // /users/42?tag=admin&tag=editor binds:
+  // { ...body, tag: ["admin", "editor"], "if-match": "...", id: "42" }
+  return ctx.ok(await users.update(model));
+});
+```
+
+Supported bodies are:
+
+- `application/json` and media types ending in `+json`; the value must be an
+  object. Nested JSON values are preserved.
+- `application/x-www-form-urlencoded`; repeated fields become arrays.
+- `multipart/form-data`; text fields are strings and file fields are `File`
+  objects. Repeated fields become arrays in their original order.
+
+Body binding applies to any body-capable method; `GET` and `HEAD` never read a
+body. Empty bodies contribute no values. Unsupported or missing media types
+also contribute no body values and are left unread. Invalid JSON, a non-object
+JSON root, malformed multipart data, or an already-consumed supported body
+produces a `400 application/problem+json` response.
+
+Binding is intentionally shallow. It does not parse dotted keys, deep-merge
+objects, coerce strings into numbers or booleans, or validate a schema. The
+generic argument supplies only a TypeScript view of the result. Use explicit
+validation after binding when values cross a trust boundary.
+
+All request headers—including authorization and cookie headers—participate in
+the flat model. Avoid logging or returning the complete bound object when it
+may contain credentials. Header names are lowercase; body, query, and route
+keys retain their original casing, so collision precedence is case-sensitive.
+
 ## WebSocket upgrades
 
 WebSocket routes are first-class routes, while the host runtime supplies the
@@ -180,5 +235,6 @@ CLI or another outer adapter.
 
 Keep WebSockets, `CONNECT`, wildcard fallbacks, probes, and intentionally
 undocumented routes on the generic router. OpenAPI schemas describe the
-contract only: request and response validation is not performed, and `ctx.bind()`
-keeps its existing behavior.
+contract only: request and response validation is not performed. `ctx.bind()`
+uses the flat model-binding rules documented above; it does not validate against
+OpenAPI request schemas.

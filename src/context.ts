@@ -28,7 +28,7 @@ export function createServerContext(
     state: {},
     auth,
     signal: request.signal,
-    bind: <T extends Record<string, unknown>>() => {
+    bind: <T extends object = Record<string, unknown>>() => {
       bound ??= bind(context);
       return bound as Promise<T>;
     },
