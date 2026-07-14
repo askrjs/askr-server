@@ -1,0 +1,69 @@
+{
+  "name": "@askrjs/server",
+  "version": "0.0.1",
+  "description": "Transport-neutral HTTP application core built on Web Request and Response",
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./router": {
+      "types": "./dist/router.d.ts",
+      "import": "./dist/router.js"
+    },
+    "./http": {
+      "types": "./dist/http.d.ts",
+      "import": "./dist/http.js"
+    },
+    "./middleware": {
+      "types": "./dist/middleware.d.ts",
+      "import": "./dist/middleware.js"
+    },
+    "./askr": {
+      "types": "./dist/askr.d.ts",
+      "import": "./dist/askr.js"
+    }
+  },
+  "scripts": {
+    "build": "vp pack",
+    "bench": "npm run bench:tier1 && npm run bench:tier2 && npm run bench:tier3 && npm run bench:tier4",
+    "bench:tier1": "vp test bench --run --reporter=default --config vitest.bench.tier1.config.ts",
+    "bench:tier2": "vp test bench --run --reporter=default --config vitest.bench.tier2.config.ts",
+    "bench:tier3": "vp test bench --run --reporter=default --config vitest.bench.tier3.config.ts",
+    "bench:tier4": "vp test bench --run --reporter=default --config vitest.bench.tier4.config.ts",
+    "fmt": "vp fmt .",
+    "lint": "vp lint src tests benches vite.config.ts vitest.*.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run test:unit && npm run test:checks",
+    "test:unit": "vp test run -c vitest.test.unit.config.ts",
+    "test:checks": "npm run typecheck",
+    "check": "npm run lint && npm run typecheck && npm test",
+    "prepublishOnly": "npm run check && npm run build"
+  },
+  "dependencies": {
+    "@askrjs/auth": ">=0.0.1 <0.1.0"
+  },
+  "peerDependencies": {
+    "@askrjs/askr": ">=0.0.52 <0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@askrjs/askr": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0",
+    "vite-plus": "^0.2.4",
+    "vitest": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
