@@ -38,7 +38,8 @@
   },
   "scripts": {
     "build": "vp pack",
-    "bench": "npm run bench:tier1 && npm run bench:tier2 && npm run bench:tier3 && npm run bench:tier4",
+    "bench": "npm run bench:dispatch && npm run bench:tier1 && npm run bench:tier2 && npm run bench:tier3 && npm run bench:tier4",
+    "bench:dispatch": "vp test bench --run --reporter=default benches/request-dispatch.bench.ts",
     "bench:tier1": "vp test bench --run --reporter=default --config vitest.bench.tier1.config.ts",
     "bench:tier2": "vp test bench --run --reporter=default --config vitest.bench.tier2.config.ts",
     "bench:tier3": "vp test bench --run --reporter=default --config vitest.bench.tier3.config.ts",
@@ -48,7 +49,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run test:unit && npm run test:checks",
     "test:unit": "vp test run -c vitest.test.unit.config.ts",
-    "test:checks": "npm run typecheck",
+    "test:checks": "npm run typecheck && npm run test:types",
+    "test:types": "npm run build && tsc -p tests/types/tsconfig.json",
     "check": "npm run lint && npm run typecheck && npm test",
     "prepublishOnly": "npm run check && npm run build"
   },

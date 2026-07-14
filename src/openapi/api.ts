@@ -52,24 +52,24 @@ function addGroupParameter(
   });
 }
 
-function createGroup<Dependencies>(
+function createGroup<Dependencies, Prefix extends string>(
   state: GroupState,
   routes: RouteState<Dependencies>[],
-): ApiGroup<Dependencies> {
-  let group: ApiGroup<Dependencies>;
+): ApiGroup<Dependencies, Prefix> {
+  let group: ApiGroup<Dependencies, Prefix>;
   const parameter = (location: ParameterLocation, name: string, value: Schema, options?: ParameterOptions) => {
     addGroupParameter(state, location, name, value, options);
     return group;
   };
-  const route = (
+  const route = <const Path extends string>(
     method: string,
-    path: string,
-    handler: ApiHandler<Dependencies>,
+    path: Path,
+    handler: ApiHandler<Dependencies, import("../contracts").PathParams<`${Prefix}${Path}`>>,
   ): RouteBuilder<Dependencies> => {
     const routeState: RouteState<Dependencies> = {
       method: method.toUpperCase(),
       path: joinPath(state.prefix, path),
-      handler,
+      handler: handler as ApiHandler<Dependencies>,
       tags: [...state.tags],
       parameters: [...state.parameters],
       bodies: [],
@@ -83,7 +83,7 @@ function createGroup<Dependencies>(
   };
   const routeMethods = Object.fromEntries(
     methods.map((method) => [method, (path: string, handler: ApiHandler<Dependencies>) => route(method, path, handler)]),
-  ) as Pick<ApiGroup<Dependencies>, (typeof methods)[number]>;
+  ) as Pick<ApiGroup<Dependencies, Prefix>, (typeof methods)[number]>;
   group = {
     tags: (...values) => { state.tags.push(...values); return group; },
     use: (...middleware) => { state.middleware.push(...middleware); return group; },
@@ -92,7 +92,8 @@ function createGroup<Dependencies>(
     queryParam: (name, value, options) => parameter("query", name, value, options),
     headerParam: (name, value, options) => parameter("header", name, value, options),
     cookieParam: (name, value, options) => parameter("cookie", name, value, options),
-    group: (prefix) => createGroup(cloneGroup(state, prefix), routes),
+    group: <const Child extends string>(prefix: Child) =>
+      createGroup<Dependencies, `${Prefix}${Child}`>(cloneGroup(state, prefix), routes),
     ...routeMethods,
   };
   return group;
@@ -104,7 +105,7 @@ export function createApi<Dependencies = undefined>(
   const routes: RouteState<Dependencies>[] = [];
   const schemas = new Map<string, JsonSchema>();
   const errors: string[] = [];
-  const root = createGroup<Dependencies>({
+  const root = createGroup<Dependencies, "">({
     prefix: "",
     tags: [],
     parameters: [],
@@ -120,7 +121,7 @@ export function createApi<Dependencies = undefined>(
       createDocument(routes, schemas, options, errors);
       const router = createRouter();
       for (const route of routes) {
-        router.route(route.method, route.path, (context) => route.handler(context, dependencies as Dependencies), {
+        router.route(route.method, route.path, (context) => route.handler(context, dependencies!), {
           auth: route.access?.requirement,
           middleware: route.middleware,
         });

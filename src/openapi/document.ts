@@ -3,6 +3,10 @@ import type {
   ApiOptions,
   JsonSchema,
   OpenApiDocument,
+  OperationObject,
+  ParameterObject,
+  RequestBodyObject,
+  ResponseObject,
   ParameterDefinition,
   ResponseDefinition,
   RouteState,
@@ -25,28 +29,28 @@ function normalize(value: unknown): unknown {
   );
 }
 
-function parameter(value: ParameterDefinition): Record<string, unknown> {
+function parameter(value: ParameterDefinition): ParameterObject {
   return {
     name: value.name,
     in: value.in,
     ...(value.description ? { description: value.description } : {}),
     ...((value.in === "path" || value.required) ? { required: true } : {}),
     ...(value.deprecated ? { deprecated: true } : {}),
-    schema: normalize(value.schema.value),
+    schema: normalize(value.schema.value) as JsonSchema,
     ...(value.example !== undefined ? { example: value.example } : {}),
   };
 }
 
-function response(value: ResponseDefinition): Record<string, unknown> {
+function response(value: ResponseDefinition): ResponseObject {
   return {
     description: value.description,
-    ...(value.headers ? { headers: normalize(value.headers) } : {}),
+    ...(value.headers ? { headers: normalize(value.headers) as Readonly<Record<string, unknown>> } : {}),
     ...(value.schema && value.mediaType
       ? {
           content: {
             [value.mediaType]: {
-              schema: normalize(value.schema.value),
-              ...(value.examples ? { examples: normalize(value.examples) } : {}),
+              schema: normalize(value.schema.value) as JsonSchema,
+              ...(value.examples ? { examples: normalize(value.examples) as Readonly<Record<string, unknown>> } : {}),
             },
           },
         }
@@ -54,20 +58,20 @@ function response(value: ResponseDefinition): Record<string, unknown> {
   };
 }
 
-function requestBody<Dependencies>(route: RouteState<Dependencies>): Record<string, unknown> | undefined {
+function requestBody<Dependencies>(route: RouteState<Dependencies>): RequestBodyObject | undefined {
   if (!route.bodies.length) return undefined;
   const descriptions = route.bodies.map((body) => body.description).filter(Boolean);
   return {
     ...(descriptions[0] ? { description: descriptions[0] } : {}),
     ...(route.bodies.some((body) => body.required) ? { required: true } : {}),
     content: sortedRecord(route.bodies.map((body) => [body.mediaType, {
-      schema: normalize(body.schema.value),
-      ...(body.examples ? { examples: normalize(body.examples) } : {}),
+      schema: normalize(body.schema.value) as JsonSchema,
+      ...(body.examples ? { examples: normalize(body.examples) as Readonly<Record<string, unknown>> } : {}),
     }] as const)),
   };
 }
 
-function operation<Dependencies>(route: RouteState<Dependencies>): Record<string, unknown> {
+function operation<Dependencies>(route: RouteState<Dependencies>): OperationObject {
   const body = requestBody(route);
   const responses = sortedRecord(
     route.responses.map((item) => [item.status, response(item)] as const),
@@ -131,6 +135,11 @@ export function createDocument<Dependencies>(
     [...methods].sort(([left], [right]) => methodOrder.indexOf(left) - methodOrder.indexOf(right)),
   )] as const));
   const securitySchemes = options.securitySchemes;
+  const extensions = sortedRecord(
+    Object.entries(options)
+      .filter(([key]) => key.startsWith("x-"))
+      .map(([key, value]) => [key, normalize(value)] as const),
+  );
   const document = {
     openapi: "3.1.2",
     info: normalize(options.info),
@@ -141,6 +150,7 @@ export function createDocument<Dependencies>(
       ...(securitySchemes ? { securitySchemes: normalize(securitySchemes) } : {}),
     },
     ...(options.externalDocs ? { externalDocs: normalize(options.externalDocs) } : {}),
+    ...extensions,
   };
   return deepFreeze(document) as OpenApiDocument;
 }

@@ -1,5 +1,5 @@
 import type { AuthRequirement } from "@askrjs/auth";
-import type { Middleware, ServerContext } from "../contracts";
+import type { Middleware, Params, ServerContext } from "../contracts";
 
 export type JsonSchema = Record<string, unknown>;
 
@@ -8,31 +8,68 @@ export interface Schema<T = unknown> {
   readonly __type?: T;
 }
 
+export interface OptionalSchema<T> extends Schema<T> {
+  readonly __optionalType: T;
+}
+
 export type InferSchema<T> = T extends Schema<infer Value> ? Value : never;
 
-export interface ApiInfo {
-  title: string;
-  version: string;
-  description?: string;
-  termsOfService?: string;
-  contact?: Record<string, string>;
-  license?: Record<string, string>;
+export interface ContactObject {
+  readonly name?: string;
+  readonly url?: string;
+  readonly email?: string;
+  readonly [extension: `x-${string}`]: unknown;
 }
+
+export interface LicenseObject {
+  readonly name: string;
+  readonly identifier?: string;
+  readonly url?: string;
+  readonly [extension: `x-${string}`]: unknown;
+}
+
+export interface ApiInfo {
+  readonly title: string;
+  readonly version: string;
+  readonly summary?: string;
+  readonly description?: string;
+  readonly termsOfService?: string;
+  readonly contact?: ContactObject;
+  readonly license?: LicenseObject;
+  readonly [extension: `x-${string}`]: unknown;
+}
+
+export interface ServerObject {
+  readonly url: string;
+  readonly description?: string;
+  readonly variables?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+  readonly [extension: `x-${string}`]: unknown;
+}
+
+export interface ExternalDocumentationObject {
+  readonly url: string;
+  readonly description?: string;
+  readonly [extension: `x-${string}`]: unknown;
+}
+
+export type SecurityScheme = Readonly<Record<string, unknown>>;
+export type SecurityRequirementObject = Readonly<Record<string, readonly string[]>>;
+export type SecurityRequirement = readonly SecurityRequirementObject[];
 
 export interface ApiOptions {
-  info: ApiInfo;
-  servers?: readonly Record<string, unknown>[];
-  externalDocs?: Record<string, unknown>;
-  securitySchemes?: Record<string, SecurityScheme>;
+  readonly info: ApiInfo;
+  readonly servers?: readonly ServerObject[];
+  readonly externalDocs?: ExternalDocumentationObject;
+  readonly securitySchemes?: Readonly<Record<string, SecurityScheme>>;
+  readonly [extension: `x-${string}`]: unknown;
 }
 
-export type SecurityScheme = Record<string, unknown>;
-export type SecurityRequirement = readonly Record<string, readonly string[]>[];
-
-export type ApiHandler<Dependencies> = (
-  context: ServerContext,
-  dependencies: Dependencies,
-) => Response | Promise<Response>;
+export type ApiHandler<Dependencies, RouteParams extends Params = Params> = {
+  bivarianceHack(
+    context: ServerContext<RouteParams>,
+    dependencies: Dependencies,
+  ): Response | Promise<Response>;
+}["bivarianceHack"];
 
 export interface ParameterDefinition {
   name: string;
@@ -81,8 +118,81 @@ export interface RouteState<Dependencies> {
   middleware: Middleware[];
   access?: AccessDefinition;
   deprecated?: boolean;
-  externalDocs?: Record<string, unknown>;
+  externalDocs?: ExternalDocumentationObject;
   errors: string[];
+}
+
+export interface MediaTypeObject {
+  readonly schema?: JsonSchema;
+  readonly examples?: Readonly<Record<string, unknown>>;
+  readonly [extension: `x-${string}`]: unknown;
+}
+
+export interface ParameterObject {
+  readonly name: string;
+  readonly in: ParameterDefinition["in"];
+  readonly description?: string;
+  readonly required?: boolean;
+  readonly deprecated?: boolean;
+  readonly schema: JsonSchema;
+  readonly example?: unknown;
+  readonly [extension: `x-${string}`]: unknown;
+}
+
+export interface RequestBodyObject {
+  readonly description?: string;
+  readonly required?: boolean;
+  readonly content: Readonly<Record<string, MediaTypeObject>>;
+  readonly [extension: `x-${string}`]: unknown;
+}
+
+export interface ResponseObject {
+  readonly description: string;
+  readonly headers?: Readonly<Record<string, unknown>>;
+  readonly content?: Readonly<Record<string, MediaTypeObject>>;
+  readonly [extension: `x-${string}`]: unknown;
+}
+
+export interface OperationObject {
+  readonly tags?: readonly string[];
+  readonly summary?: string;
+  readonly description?: string;
+  readonly operationId?: string;
+  readonly parameters?: readonly ParameterObject[];
+  readonly requestBody?: RequestBodyObject;
+  readonly responses: Readonly<Record<string, ResponseObject>>;
+  readonly security?: SecurityRequirement;
+  readonly deprecated?: boolean;
+  readonly externalDocs?: ExternalDocumentationObject;
+  readonly [extension: `x-${string}`]: unknown;
+}
+
+export interface PathItemObject {
+  readonly get?: OperationObject;
+  readonly put?: OperationObject;
+  readonly post?: OperationObject;
+  readonly delete?: OperationObject;
+  readonly options?: OperationObject;
+  readonly head?: OperationObject;
+  readonly patch?: OperationObject;
+  readonly trace?: OperationObject;
+  readonly [extension: `x-${string}`]: unknown;
+}
+
+export interface ComponentsObject {
+  readonly schemas: Readonly<Record<string, JsonSchema>>;
+  readonly securitySchemes?: Readonly<Record<string, SecurityScheme>>;
+  readonly [extension: `x-${string}`]: unknown;
+}
+
+export interface OpenApiDocument {
+  readonly openapi: "3.1.2";
+  readonly info: ApiInfo;
+  readonly servers?: readonly ServerObject[];
+  readonly paths: Readonly<Record<string, PathItemObject>>;
+  readonly components: ComponentsObject;
+  readonly externalDocs?: ExternalDocumentationObject;
+  readonly [extension: `x-${string}`]: unknown;
 }
 
 export interface GroupState {
@@ -92,5 +202,3 @@ export interface GroupState {
   middleware: Middleware[];
   access?: AccessDefinition;
 }
-
-export type OpenApiDocument = Readonly<Record<string, unknown>>;

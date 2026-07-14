@@ -3,6 +3,19 @@
 `@askrjs/server` is a transport-neutral HTTP application layer built around
 Web `Request` and `Response`.
 
+This `0.0.x` package is pre-release and is not currently published to npm.
+Install it from a local checkout or packed artifact while its public contract
+is being finalized.
+
+Literal route paths infer their parameters for HTTP, WebSocket, and OpenAPI
+handlers. Named wildcards capture the remaining path:
+
+```ts
+router.get("/objects/{*key}", (ctx) => {
+  return ctx.ok({ key: ctx.params.key });
+});
+```
+
 ## Explicit dependencies
 
 Create application dependencies at the composition root and pass them into

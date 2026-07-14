@@ -16,11 +16,13 @@ async function runMiddleware(
   terminal: Handler,
 ): Promise<Response> {
   let index = -1;
-  const next = async (): Promise<Response> => {
-    const current = middleware[++index];
-    return current ? current(context, next) : terminal(context);
+  const dispatch = async (nextIndex: number): Promise<Response> => {
+    if (nextIndex <= index) throw new Error("next() may only be called once per middleware invocation");
+    index = nextIndex;
+    const current = middleware[nextIndex];
+    return current ? current(context, () => dispatch(nextIndex + 1)) : terminal(context);
   };
-  return next();
+  return dispatch(0);
 }
 
 function denial(decision: AuthDecision): Response | undefined {

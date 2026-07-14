@@ -132,7 +132,7 @@ describe("OpenAPI public contract", () => {
   });
 
   it("returns a deeply immutable, deterministic document", () => {
-    const api = createApi({ info: { title: "Stable", version: "1" } });
+    const api = createApi({ info: { title: "Stable", version: "1" }, "x-service": { name: "users" } });
     api.get("/z", (ctx) => ctx.ok()).operationId("z").summary("Z").ok();
     api.get("/a", (ctx) => ctx.ok()).operationId("a").summary("A").ok();
     const first = api.toOpenApiDocument();
@@ -141,6 +141,7 @@ describe("OpenAPI public contract", () => {
     expect(Object.isFrozen(first)).toBe(true);
     expect(Object.isFrozen(first.paths)).toBe(true);
     expect(Object.keys(first.paths as object)).toEqual(["/a", "/z"]);
+    expect(first["x-service"]).toEqual({ name: "users" });
   });
 
   it("supports named redirects, remaining server errors, and status ranges", () => {

@@ -1,30 +1,21 @@
 import type { ApiRoute, Params } from "../contracts";
 
-const METHOD_BITS: Readonly<Record<string, number>> = {
-  GET: 1 << 0,
-  HEAD: 1 << 1,
-  POST: 1 << 2,
-  PUT: 1 << 3,
-  PATCH: 1 << 4,
-  DELETE: 1 << 5,
-  OPTIONS: 1 << 6,
-  TRACE: 1 << 7,
-  CONNECT: 1 << 8,
-};
-const GET_BIT = METHOD_BITS.GET;
-const HEAD_BIT = METHOD_BITS.HEAD;
-
-type Segment =
-  | { kind: "literal"; value: string }
-  | { kind: "param"; name: string }
-  | { kind: "wildcard"; name?: string };
-
-type CompiledRoute = {
+type Leaf = {
   route: ApiRoute;
-  segments: Segment[];
-  methods: string[];
-  methodMask: number;
+  methods: readonly string[];
+  order: number;
+  parameterNames: readonly string[];
 };
+
+type Node = {
+  static: Map<string, Node>;
+  parameter?: Node;
+  namedWildcard?: Node;
+  wildcard?: Node;
+  leaves: Leaf[];
+};
+
+type Candidate = { leaf: Leaf; values: readonly string[]; specificity: readonly number[] };
 
 export interface RouteMatch {
   route: ApiRoute;
@@ -36,81 +27,179 @@ export interface MatchResult {
   allowed: string[];
 }
 
-function segments(path: string): string[] {
+export interface CompiledMatcher {
+  match(pathname: string, method: string): MatchResult;
+}
+
+export class MalformedPathParameterError extends URIError {}
+
+function node(): Node {
+  return { static: new Map(), leaves: [] };
+}
+
+function pathSegments(path: string): string[] {
   return path.split("?", 1)[0].split("/").filter(Boolean);
 }
 
-function compile(route: ApiRoute): CompiledRoute {
-  const parsed = segments(route.path).map((segment): Segment => {
-    if (segment === "*") return { kind: "wildcard" };
-    if (segment.startsWith("{*") && segment.endsWith("}")) {
-      return { kind: "wildcard", name: segment.slice(2, -1) };
+function parameterName(segment: string): string | undefined {
+  return segment.startsWith("{") && segment.endsWith("}")
+    ? segment.slice(1, -1).trim()
+    : undefined;
+}
+
+function parameterChild(parent: Node): Node {
+  parent.parameter ??= node();
+  return parent.parameter;
+}
+
+function wildcardChild(parent: Node, named: boolean): Node {
+  const key = named ? "namedWildcard" : "wildcard";
+  parent[key] ??= node();
+  return parent[key];
+}
+
+function addRoute(root: Node, route: ApiRoute, order: number): void {
+  let current = root;
+  const names: string[] = [];
+  for (const segment of pathSegments(route.path)) {
+    const name = parameterName(segment);
+    if (segment === "*" || name?.startsWith("*")) {
+      const wildcardName = name?.slice(1) || undefined;
+      if (wildcardName) names.push(wildcardName);
+      current = wildcardChild(current, wildcardName !== undefined);
+      break;
     }
-    if (segment.startsWith("{") && segment.endsWith("}")) {
-      return { kind: "param", name: segment.slice(1, -1).trim() };
+    if (name !== undefined) {
+      names.push(name);
+      current = parameterChild(current);
+      continue;
     }
-    return { kind: "literal", value: segment };
-  });
+    const existing = current.static.get(segment);
+    if (existing) current = existing;
+    else {
+      const child = node();
+      current.static.set(segment, child);
+      current = child;
+    }
+  }
   const methods = (typeof route.method === "string" ? [route.method] : route.method ?? ["GET"])
     .map((method) => method.toUpperCase());
-  return {
-    route,
-    segments: parsed,
-    methods,
-    methodMask: methods.reduce((mask, method) => mask | (METHOD_BITS[method] ?? 0), 0),
-  };
+  current.leaves.push({ route, methods, order, parameterNames: names });
 }
 
-function matchPath(route: CompiledRoute, pathname: string): Params | undefined {
-  const parts = segments(pathname);
-  const params: Params = {};
-  let part = 0;
-  for (const segment of route.segments) {
-    if (segment.kind === "wildcard") {
-      if (segment.name) params[segment.name] = parts.slice(part).map(decodeURIComponent).join("/");
-      else if (part >= parts.length) return undefined;
-      return params;
-    }
-    const value = parts[part++];
-    if (value === undefined) return undefined;
-    if (segment.kind === "literal" && segment.value !== value) return undefined;
-    if (segment.kind === "param") params[segment.name] = decodeURIComponent(value);
-  }
-  return part === parts.length ? params : undefined;
-}
-
-export function createMatcher(routes: readonly ApiRoute[]): (request: Request) => MatchResult {
-  const compiled = routes.map(compile);
-  return (request) => {
-    const candidates = compiled
-      .map((route) => ({ route, params: matchPath(route, new URL(request.url).pathname) }))
-      .filter((candidate): candidate is { route: CompiledRoute; params: Params } => candidate.params !== undefined);
-    const allowed: string[] = [];
-    const seen = new Set<string>();
-    let match: RouteMatch | undefined;
-    let implicitHead: RouteMatch | undefined;
-    for (const candidate of candidates) {
-      for (const method of candidate.route.methods) {
-        if (!seen.has(method)) {
-          seen.add(method);
-          allowed.push(method);
-        }
+function collect(
+  current: Node,
+  parts: readonly string[],
+  index: number,
+  values: readonly string[],
+  specificity: readonly number[],
+  candidates: Candidate[],
+): void {
+  if (index === parts.length) {
+    for (const leaf of current.leaves) candidates.push({ leaf, values, specificity });
+    if (current.namedWildcard) {
+      for (const leaf of current.namedWildcard.leaves) {
+        candidates.push({
+          leaf,
+          values: [...values, ""],
+          specificity: [...specificity, 0],
+        });
       }
-      const canImplicitHead = !candidate.route.route.upgrade &&
-        (candidate.route.methodMask & GET_BIT) !== 0 &&
-        (candidate.route.methodMask & HEAD_BIT) === 0;
-      if (canImplicitHead && !seen.has("HEAD")) {
+    }
+    return;
+  }
+  const part = parts[index];
+  const staticChild = current.static.get(part);
+  if (staticChild) collect(staticChild, parts, index + 1, values, [...specificity, 2], candidates);
+  if (current.parameter) {
+    collect(current.parameter, parts, index + 1, [...values, part], [...specificity, 1], candidates);
+  }
+  if (current.namedWildcard) {
+    for (const leaf of current.namedWildcard.leaves) {
+      candidates.push({
+        leaf,
+        values: [...values, parts.slice(index).join("/")],
+        specificity: [...specificity, 0],
+      });
+    }
+  }
+  if (current.wildcard) {
+    for (const leaf of current.wildcard.leaves) {
+      candidates.push({ leaf, values, specificity: [...specificity, 0] });
+    }
+  }
+}
+
+function compareSpecificity(left: Candidate, right: Candidate): number {
+  const length = Math.max(left.specificity.length, right.specificity.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = (right.specificity[index] ?? -1) - (left.specificity[index] ?? -1);
+    if (difference) return difference;
+  }
+  return 0;
+}
+
+function compareForMethod(method: string, left: Candidate, right: Candidate): number {
+  const specificity = compareSpecificity(left, right);
+  if (specificity) return specificity;
+  if (method === "HEAD") {
+    const leftExplicit = left.leaf.methods.includes("HEAD");
+    const rightExplicit = right.leaf.methods.includes("HEAD");
+    if (leftExplicit !== rightExplicit) return leftExplicit ? -1 : 1;
+  }
+  return left.leaf.order - right.leaf.order;
+}
+
+function supports(leaf: Leaf, method: string): boolean {
+  if (leaf.methods.includes(method)) return true;
+  return method === "HEAD" && !leaf.route.upgrade && leaf.methods.includes("GET");
+}
+
+function decode(candidate: Candidate): Params {
+  const params: Params = {};
+  try {
+    candidate.leaf.parameterNames.forEach((name, index) => {
+      const raw = candidate.values[index] ?? "";
+      params[name] = raw.split("/").map(decodeURIComponent).join("/");
+    });
+  } catch (error) {
+    throw new MalformedPathParameterError("A route parameter contains invalid percent-encoding.", { cause: error });
+  }
+  return params;
+}
+
+function allowedMethods(candidates: readonly Candidate[]): string[] {
+  const allowed: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of [...candidates].sort((left, right) => left.leaf.order - right.leaf.order)) {
+    for (const method of candidate.leaf.methods) {
+      if (!seen.has(method)) {
+        seen.add(method);
+        allowed.push(method);
+      }
+      if (method === "GET" && !candidate.leaf.route.upgrade && !seen.has("HEAD")) {
         seen.add("HEAD");
         allowed.push("HEAD");
       }
-      const requestBit = METHOD_BITS[request.method] ?? 0;
-      if (!match && (candidate.route.methodMask & requestBit) !== 0) {
-        match = { route: candidate.route.route, params: candidate.params };
-      }
-      if (request.method === "HEAD" && canImplicitHead && !implicitHead) {
-        implicitHead = { route: candidate.route.route, params: candidate.params };
-      }
     }
-    return { match: match ?? implicitHead, allowed };
+  }
+  return allowed;
+}
+
+export function createMatcher(routes: readonly ApiRoute[]): CompiledMatcher {
+  const root = node();
+  [...routes].forEach((route, order) => addRoute(root, route, order));
+  return {
+    match(pathname, method) {
+      const normalizedMethod = method.toUpperCase();
+      const candidates: Candidate[] = [];
+      collect(root, pathSegments(pathname), 0, [], [], candidates);
+      candidates.sort((left, right) => compareForMethod(normalizedMethod, left, right));
+      const candidate = candidates.find((value) => supports(value.leaf, normalizedMethod));
+      return {
+        match: candidate ? { route: candidate.leaf.route, params: decode(candidate) } : undefined,
+        allowed: allowedMethods(candidates),
+      };
+    },
   };
 }

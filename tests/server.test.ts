@@ -65,6 +65,67 @@ describe("HTTP responses", () => {
 });
 
 describe("router", () => {
+  it("should prefer static then parameter then wildcard routes", async () => {
+    const router = createRouter();
+    router.get("/objects/{*key}", ({ params }) => text(`wildcard:${params.key}`));
+    router.get("/objects/{id}", ({ params }) => text(`parameter:${params.id}`));
+    router.get("/objects/current", () => text("static"));
+    const app = createServerApp(router);
+    expect(await (await app.fetch(new Request("http://example.test/objects/current"))).text()).toBe("static");
+    expect(await (await app.fetch(new Request("http://example.test/objects/42"))).text()).toBe("parameter:42");
+    expect(await (await app.fetch(new Request("http://example.test/objects/a/b"))).text()).toBe("wildcard:a/b");
+  });
+
+  it("should use registration order only for equal-specificity routes", async () => {
+    const router = createRouter();
+    router.get("/{first}", () => text("first"));
+    router.get("/{second}", () => text("second"));
+    expect(await (await createServerApp(router).fetch(new Request("http://example.test/value"))).text()).toBe("first");
+  });
+
+  it("should choose the most specific route supporting the requested method", async () => {
+    const router = createRouter();
+    router.get("/items/fixed", () => text("static-get"));
+    router.post("/items/{id}", ({ params }) => text(`parameter-post:${params.id}`));
+    const response = await createServerApp(router).fetch(new Request("http://example.test/items/fixed", { method: "POST" }));
+    expect(await response.text()).toBe("parameter-post:fixed");
+  });
+
+  it("should aggregate deterministic Allow values across every matching path shape", async () => {
+    const router = createRouter();
+    router.get("/items/fixed", () => text("get"));
+    router.route("PURGE", "/items/{id}", () => text("purge"));
+    router.post("/items/{*path}", () => text("post"));
+    const response = await createServerApp(router).fetch(new Request("http://example.test/items/fixed", { method: "DELETE" }));
+    expect(response.status).toBe(405);
+    expect(response.headers.get("allow")).toBe("GET, HEAD, PURGE, POST");
+    expect(await (await createServerApp(router).fetch(new Request("http://example.test/items/one", { method: "PURGE" }))).text())
+      .toBe("purge");
+  });
+
+  it("should preserve named and unnamed wildcard semantics", async () => {
+    const named = createServerApp({ routes: [{ path: "/files/{*key}", handler: ({ params }) => text(params.key) }] });
+    expect(await (await named.fetch(new Request("http://example.test/files"))).text()).toBe("");
+    const unnamed = createServerApp({ routes: [{ path: "/files/*", handler: () => text("matched") }] });
+    expect((await unnamed.fetch(new Request("http://example.test/files"))).status).toBe(404);
+    expect(await (await unnamed.fetch(new Request("http://example.test/files/a"))).text()).toBe("matched");
+  });
+
+  it("should return a 400 Problem response for malformed captured encoding", async () => {
+    const app = createServerApp({ routes: [{ path: "/items/{id}", handler: () => text("no") }] });
+    const response = await app.fetch(new Request("http://example.test/items/%E0%A4%A"));
+    expect(response.status).toBe(400);
+    expect(response.headers.get("content-type")).toContain("application/problem+json");
+  });
+
+  it("should snapshot compiled routes at application construction", async () => {
+    const router = createRouter();
+    router.get("/before", () => text("before"));
+    const app = createServerApp(router);
+    router.get("/after", () => text("after"));
+    expect((await app.fetch(new Request("http://example.test/after"))).status).toBe(404);
+  });
+
   it("should register route options after the handler", async () => {
     const router = createRouter();
     router.get("/admin/{id}", ({ params }) => json(params), { auth: requireRole("admin") });
@@ -105,6 +166,48 @@ describe("router", () => {
     expect(await head.text()).toBe("");
     const options = await app.fetch(new Request("http://example.test/items", { method: "OPTIONS" }));
     expect(options.headers.get("allow")).toBe("GET, HEAD, POST");
+  });
+});
+
+describe("middleware composition", () => {
+  it("should support nested synchronous and asynchronous middleware", async () => {
+    const order: string[] = [];
+    const app = createServerApp({
+      middleware: [
+        async (_ctx, next) => { order.push("outer-before"); const value = await next(); order.push("outer-after"); return value; },
+        (_ctx, next) => { order.push("inner"); return next(); },
+      ],
+      routes: [{ path: "/", handler: () => { order.push("handler"); return text("ok"); } }],
+    });
+    await app.fetch(new Request("http://example.test/"));
+    expect(order).toEqual(["outer-before", "inner", "handler", "outer-after"]);
+  });
+
+  it("should reject double next without invoking the handler twice", async () => {
+    let calls = 0;
+    const app = createServerApp({
+      middleware: [async (_ctx, next) => { await next(); return next(); }],
+      routes: [{ path: "/", handler: () => { calls += 1; return text("ok"); } }],
+      onError: (error) => text((error as Error).message, { status: 500 }),
+    });
+    const response = await app.fetch(new Request("http://example.test/"));
+    expect(response.status).toBe(500);
+    expect(await response.text()).toContain("next() may only be called once");
+    expect(calls).toBe(1);
+  });
+
+  it("should apply the double-next guard to route middleware", async () => {
+    let calls = 0;
+    const app = createServerApp({
+      routes: [{
+        path: "/",
+        middleware: [async (_ctx, next) => { await next(); return next(); }],
+        handler: () => { calls += 1; return text("ok"); },
+      }],
+      onError: () => text("handled", { status: 500 }),
+    });
+    expect((await app.fetch(new Request("http://example.test/"))).status).toBe(500);
+    expect(calls).toBe(1);
   });
 });
 

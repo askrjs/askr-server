@@ -1,4 +1,4 @@
-import type { JsonSchema, Schema } from "./types";
+import type { InferSchema, JsonSchema, OptionalSchema, Schema } from "./types";
 
 type CommonOptions = {
   description?: string;
@@ -37,8 +37,12 @@ type ObjectOptions = CommonOptions & {
   maxProperties?: number;
 };
 
-function make<T>(value: JsonSchema): Schema<T> {
-  return Object.freeze({ value: Object.freeze(value) });
+const optionalSchemas = new WeakSet<Schema>();
+
+function make<T>(value: JsonSchema, optional = false): Schema<T> {
+  const result = { value: Object.freeze(value) };
+  if (optional) optionalSchemas.add(result);
+  return Object.freeze(result);
 }
 
 function common(type: string, options: CommonOptions = {}): JsonSchema {
@@ -49,18 +53,29 @@ function stringFormat(format: string, options: StringOptions = {}): Schema<strin
   return make<string>({ type: "string", ...options, format });
 }
 
+type OptionalKeys<T extends Record<string, Schema>> = {
+  [Key in keyof T]-?: T[Key] extends OptionalSchema<unknown> ? Key : never;
+}[keyof T];
+
+type ObjectValue<T extends Record<string, Schema>> =
+  { [Key in Exclude<keyof T, OptionalKeys<T>>]: InferSchema<T[Key]> } &
+  { [Key in OptionalKeys<T>]?: InferSchema<T[Key]> };
+
+type UnionOf<T extends readonly Schema[]> = InferSchema<T[number]>;
+type IntersectionOf<T extends readonly Schema[]> =
+  T extends readonly [infer Head extends Schema, ...infer Rest extends readonly Schema[]]
+    ? InferSchema<Head> & IntersectionOf<Rest>
+    : unknown;
+
 function object<T extends Record<string, Schema>>(
   properties: T,
   options: ObjectOptions = {},
-): Schema<{ [K in keyof T]: T[K] extends Schema<infer V> ? V : never }> {
+): Schema<ObjectValue<T>> {
   const required = Object.entries(properties)
-    .filter(([, value]) => value.value["x-askr-optional"] !== true)
+    .filter(([, value]) => !optionalSchemas.has(value))
     .map(([name]) => name);
   const normalized = Object.fromEntries(
-    Object.entries(properties).map(([name, value]) => {
-      const { ["x-askr-optional"]: _optional, ...schemaValue } = value.value;
-      return [name, schemaValue];
-    }),
+    Object.entries(properties).map(([name, value]) => [name, value.value]),
   );
   const additional = options.additionalProperties;
   const { additionalProperties: _ignored, ...rest } = options;
@@ -96,11 +111,15 @@ export const schema = Object.freeze({
     make<T[number]>({ ...options, enum: [...values] }),
   literal: <const T extends string | number | boolean | null>(value: T, options: CommonOptions = {}) =>
     make<T>({ ...options, const: value }),
-  optional: <T>(value: Schema<T>) => make<T | undefined>({ ...value.value, "x-askr-optional": true }),
+  optional: <T>(value: Schema<T>): OptionalSchema<T> =>
+    make<T>(value.value, true) as OptionalSchema<T>,
   nullable: <T>(value: Schema<T>) => make<T | null>({ anyOf: [value.value, { type: "null" }] }),
-  oneOf: <T>(...values: readonly Schema<T>[]) => make<T>({ oneOf: values.map((value) => value.value) }),
-  anyOf: <T>(...values: readonly Schema<T>[]) => make<T>({ anyOf: values.map((value) => value.value) }),
-  allOf: <T>(...values: readonly Schema[]) => make<T>({ allOf: values.map((value) => value.value) }),
+  oneOf: <const T extends readonly Schema[]>(...values: T) =>
+    make<UnionOf<T>>({ oneOf: values.map((value) => value.value) }),
+  anyOf: <const T extends readonly Schema[]>(...values: T) =>
+    make<UnionOf<T>>({ anyOf: values.map((value) => value.value) }),
+  allOf: <const T extends readonly Schema[]>(...values: T) =>
+    make<IntersectionOf<T>>({ allOf: values.map((value) => value.value) }),
   raw: <T = unknown>(value: JsonSchema) => make<T>({ ...value }),
   ref: <T = unknown>(name: string) => make<T>({ $ref: `#/components/schemas/${name}` }),
 });

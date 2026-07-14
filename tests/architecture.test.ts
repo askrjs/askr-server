@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { createMatcher } from "../src/router/matcher";
 
 const root = resolve(import.meta.dirname, "..");
 
@@ -46,5 +47,31 @@ describe("server architecture", () => {
     for (const file of files(resolve(root, "src"))) {
       expect(readFileSync(file, "utf8").split("\n").length, relative(root, file)).toBeLessThanOrEqual(300);
     }
+  });
+
+  it("should compile the source route collection once and retain an application snapshot", () => {
+    let iterations = 0;
+    const source = new Proxy([{
+      path: "/items/{id}",
+      method: "GET",
+      handler: (ctx: import("../src/contracts").ServerContext) => ctx.ok(),
+    }], {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) iterations += 1;
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    const matcher = createMatcher(source);
+    expect(iterations).toBe(1);
+    matcher.match("/items/one", "GET");
+    matcher.match("/items/two", "GET");
+    expect(iterations).toBe(1);
+  });
+
+  it("should keep URL parsing outside compiled path traversal", () => {
+    const matcher = readFileSync(resolve(root, "src/router/matcher.ts"), "utf8");
+    const application = readFileSync(resolve(root, "src/application.ts"), "utf8");
+    expect(matcher).not.toMatch(/new URL\(/);
+    expect(application).toContain("matcher.match(context.url.pathname, request.method)");
   });
 });

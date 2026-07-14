@@ -2,6 +2,18 @@ import type { AuthContext, AuthRequirement, AuthResolver } from "@askrjs/auth";
 
 export type RequestState = Record<string, unknown>;
 export type Params = Record<string, string>;
+type Whitespace = " " | "\n" | "\r" | "\t";
+type TrimLeft<Value extends string> = Value extends `${Whitespace}${infer Rest}` ? TrimLeft<Rest> : Value;
+type TrimRight<Value extends string> = Value extends `${infer Rest}${Whitespace}` ? TrimRight<Rest> : Value;
+type Trim<Value extends string> = TrimLeft<TrimRight<Value>>;
+type StripWildcard<Name extends string> = Trim<Name> extends `*${infer Value}` ? Trim<Value> : Trim<Name>;
+type PathParameterNames<Path extends string> =
+  Path extends `${string}{${infer Name}}${infer Rest}`
+    ? StripWildcard<Name> | PathParameterNames<Rest>
+    : never;
+export type PathParams<Path extends string> = string extends Path
+  ? Params
+  : { [Name in PathParameterNames<Path>]: string };
 export type JsonValue = unknown;
 
 export interface Problem {
@@ -44,10 +56,9 @@ export interface WebSocketLike {
   close(code?: number, reason?: string): void;
 }
 
-export type WebSocketHandler = (
-  socket: WebSocketLike,
-  context: ServerContext,
-) => void | Promise<void>;
+export type WebSocketHandler<RouteParams extends Params = Params> = {
+  bivarianceHack(socket: WebSocketLike, context: ServerContext<RouteParams>): void | Promise<void>;
+}["bivarianceHack"];
 
 export interface WebSocketAdapter {
   upgrade(
@@ -57,10 +68,10 @@ export interface WebSocketAdapter {
   ): Response | Promise<Response>;
 }
 
-export interface ServerContext {
+export interface ServerContext<RouteParams extends Params = Params> {
   request: Request;
   url: URL;
-  params: Params;
+  params: RouteParams;
   headers: Headers;
   query: URLSearchParams;
   state: RequestState;
@@ -96,21 +107,25 @@ export interface ServerContext {
 }
 
 export type Next = () => Response | Promise<Response>;
-export type Middleware = (context: ServerContext, next: Next) => Response | Promise<Response>;
-export type Handler = (context: ServerContext) => Response | Promise<Response>;
+export type Middleware<RouteParams extends Params = Params> = {
+  bivarianceHack(context: ServerContext<RouteParams>, next: Next): Response | Promise<Response>;
+}["bivarianceHack"];
+export type Handler<RouteParams extends Params = Params> = {
+  bivarianceHack(context: ServerContext<RouteParams>): Response | Promise<Response>;
+}["bivarianceHack"];
 export type ProbeResult = boolean | Response | void;
 export type ProbeHandler = (context: ServerContext) => ProbeResult | Promise<ProbeResult>;
 
-export interface ApiRouteOptions {
+export interface ApiRouteOptions<RouteParams extends Params = Params> {
   auth?: AuthRequirement;
-  middleware?: readonly Middleware[];
+  middleware?: readonly Middleware<RouteParams>[];
 }
 
-export interface ApiRoute extends ApiRouteOptions {
+export interface ApiRoute<RouteParams extends Params = Params> extends ApiRouteOptions<RouteParams> {
   path: string;
   method?: string | readonly string[];
-  handler: Handler;
-  upgrade?: WebSocketHandler;
+  handler: Handler<RouteParams>;
+  upgrade?: WebSocketHandler<RouteParams>;
 }
 
 export interface ProbeOptions {
@@ -136,32 +151,32 @@ export interface ServerApp {
 }
 
 export interface RouteBuilder {
-  route(method: string | readonly string[], path: string, handler: Handler, options?: ApiRouteOptions): ApiRoute;
-  get(path: string, handler: Handler, options?: ApiRouteOptions): ApiRoute;
-  post(path: string, handler: Handler, options?: ApiRouteOptions): ApiRoute;
-  put(path: string, handler: Handler, options?: ApiRouteOptions): ApiRoute;
-  patch(path: string, handler: Handler, options?: ApiRouteOptions): ApiRoute;
-  delete(path: string, handler: Handler, options?: ApiRouteOptions): ApiRoute;
-  options(path: string, handler: Handler, options?: ApiRouteOptions): ApiRoute;
-  head(path: string, handler: Handler, options?: ApiRouteOptions): ApiRoute;
-  trace(path: string, handler: Handler, options?: ApiRouteOptions): ApiRoute;
-  connect(path: string, handler: Handler, options?: ApiRouteOptions): ApiRoute;
-  ws(path: string, handler: WebSocketHandler, options?: ApiRouteOptions): ApiRoute;
+  route<const Path extends string>(method: string | readonly string[], path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): ApiRoute<PathParams<Path>>;
+  get<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): ApiRoute<PathParams<Path>>;
+  post<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): ApiRoute<PathParams<Path>>;
+  put<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): ApiRoute<PathParams<Path>>;
+  patch<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): ApiRoute<PathParams<Path>>;
+  delete<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): ApiRoute<PathParams<Path>>;
+  options<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): ApiRoute<PathParams<Path>>;
+  head<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): ApiRoute<PathParams<Path>>;
+  trace<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): ApiRoute<PathParams<Path>>;
+  connect<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): ApiRoute<PathParams<Path>>;
+  ws<const Path extends string>(path: Path, handler: WebSocketHandler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): ApiRoute<PathParams<Path>>;
 }
 
 export interface Router extends Omit<RouteBuilder, "route" | "get" | "post" | "put" | "patch" | "delete" | "options" | "head" | "trace" | "connect" | "ws"> {
   readonly routes: readonly ApiRoute[];
   readonly middleware: readonly Middleware[];
   use(...middleware: Middleware[]): Router;
-  route(method: string | readonly string[], path: string, handler: Handler, options?: ApiRouteOptions): Router;
-  get(path: string, handler: Handler, options?: ApiRouteOptions): Router;
-  post(path: string, handler: Handler, options?: ApiRouteOptions): Router;
-  put(path: string, handler: Handler, options?: ApiRouteOptions): Router;
-  patch(path: string, handler: Handler, options?: ApiRouteOptions): Router;
-  delete(path: string, handler: Handler, options?: ApiRouteOptions): Router;
-  options(path: string, handler: Handler, options?: ApiRouteOptions): Router;
-  head(path: string, handler: Handler, options?: ApiRouteOptions): Router;
-  trace(path: string, handler: Handler, options?: ApiRouteOptions): Router;
-  connect(path: string, handler: Handler, options?: ApiRouteOptions): Router;
-  ws(path: string, handler: WebSocketHandler, options?: ApiRouteOptions): Router;
+  route<const Path extends string>(method: string | readonly string[], path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): Router;
+  get<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): Router;
+  post<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): Router;
+  put<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): Router;
+  patch<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): Router;
+  delete<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): Router;
+  options<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): Router;
+  head<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): Router;
+  trace<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): Router;
+  connect<const Path extends string>(path: Path, handler: Handler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): Router;
+  ws<const Path extends string>(path: Path, handler: WebSocketHandler<PathParams<Path>>, options?: ApiRouteOptions<PathParams<Path>>): Router;
 }

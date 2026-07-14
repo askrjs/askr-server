@@ -3,25 +3,27 @@ import type {
   ApiRouteOptions,
   Handler,
   Middleware,
+  Params,
+  PathParams,
   RouteBuilder,
   Router,
   WebSocketHandler,
 } from "../contracts";
 
-function httpRoute(
+function httpRoute<RouteParams extends Params>(
   method: string | readonly string[],
   path: string,
-  handler: Handler,
-  options: ApiRouteOptions = {},
-): ApiRoute {
+  handler: Handler<RouteParams>,
+  options: ApiRouteOptions<RouteParams> = {},
+): ApiRoute<RouteParams> {
   return { method, path, handler, ...options };
 }
 
-function websocketRoute(
+function websocketRoute<RouteParams extends Params>(
   path: string,
-  upgrade: WebSocketHandler,
-  options: ApiRouteOptions = {},
-): ApiRoute {
+  upgrade: WebSocketHandler<RouteParams>,
+  options: ApiRouteOptions<RouteParams> = {},
+): ApiRoute<RouteParams> {
   return {
     method: "GET",
     path,
@@ -32,9 +34,14 @@ function websocketRoute(
 }
 
 function createBuilder(add: (route: ApiRoute) => void): RouteBuilder {
-  const route = (method: string | readonly string[], path: string, handler: Handler, options?: ApiRouteOptions) => {
+  const route = <const Path extends string>(
+    method: string | readonly string[],
+    path: Path,
+    handler: Handler<PathParams<Path>>,
+    options?: ApiRouteOptions<PathParams<Path>>,
+  ) => {
     const value = httpRoute(method, path, handler, options);
-    add(value);
+    add(value as ApiRoute);
     return value;
   };
   return {
@@ -50,7 +57,7 @@ function createBuilder(add: (route: ApiRoute) => void): RouteBuilder {
     connect: (path, handler, options) => route("CONNECT", path, handler, options),
     ws: (path, handler, options) => {
       const value = websocketRoute(path, handler, options);
-      add(value);
+      add(value as ApiRoute);
       return value;
     },
   };

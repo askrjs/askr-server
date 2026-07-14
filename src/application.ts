@@ -3,7 +3,7 @@ import { BindingError } from "./binding";
 import { anonymousAuthContext, createServerContext } from "./context";
 import { createTerminal, runGlobalMiddleware } from "./dispatch";
 import { problem } from "./http/responses";
-import { createMatcher } from "./router/matcher";
+import { createMatcher, MalformedPathParameterError } from "./router/matcher";
 
 function isRouter(value: Router | ServerAppOptions): value is Router {
   return "use" in value && "routes" in value;
@@ -15,14 +15,14 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
   const options: ServerAppOptions = isRouter(input) ? { router: input } : input;
   const routes = options.routes ?? options.router?.routes ?? [];
   const middleware = [...(options.router?.middleware ?? []), ...(options.middleware ?? [])];
-  const match = createMatcher(routes);
+  const matcher = createMatcher(routes);
 
   return {
     async fetch(request): Promise<Response> {
       const context = createServerContext(request, anonymousAuthContext(), options);
-      const found = match(request);
-      context.params = found.match?.params ?? {};
       try {
+        const found = matcher.match(context.url.pathname, request.method);
+        context.params = found.match?.params ?? {};
         if (options.auth) {
           context.auth = await options.auth.resolve(request, { signal: request.signal });
         }
@@ -32,6 +32,9 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
           createTerminal(found, options),
         );
       } catch (error) {
+        if (error instanceof MalformedPathParameterError) {
+          return problem(400, error.message);
+        }
         if (error instanceof BindingError) {
           return problem(error.status, error.message, {
             extensions: error.field ? { field: error.field } : undefined,
