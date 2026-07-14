@@ -9,21 +9,23 @@ function bindingApp(path = "/items/{id}") {
 }
 
 describe("model binding", () => {
-  it("should merge body then query then headers then route parameters", async () => {
+  it("should merge body then query then route parameters and exclude headers", async () => {
     const response = await bindingApp("/items/{shared}").fetch(new Request(
       "http://example.test/items/route?shared=query&query-only=yes",
       {
         method: "POST",
-        headers: { "content-type": "application/json", shared: "header", "x-source": "test" },
+        headers: { "content-type": "application/json", shared: "header", "x-source": "excluded" },
         body: JSON.stringify({ shared: "body", "body-only": true }),
       },
     ));
-    await expect(response.json()).resolves.toMatchObject({
+    const result = await response.json() as Record<string, unknown>;
+    expect(result).toMatchObject({
       shared: "route",
       "body-only": true,
       "query-only": "yes",
-      "x-source": "test",
     });
+    expect(result["x-source"]).toBeUndefined();
+    expect(result["content-type"]).toBeUndefined();
   });
 
   it("should parse standard and structured-suffix JSON objects", async () => {
@@ -111,7 +113,7 @@ describe("model binding", () => {
       headers: { "content-type": "text/plain" },
       body: "untouched",
     }))).json() as { bound: Record<string, unknown>; remaining: string };
-    expect(result.bound).toMatchObject({ query: "yes", "content-type": "text/plain" });
+    expect(result.bound).toEqual({ query: "yes" });
     expect(result.remaining).toBe("untouched");
   });
 

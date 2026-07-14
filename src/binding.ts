@@ -17,7 +17,6 @@ export interface BindContext {
   request: Request;
   params: Params;
   url: URL;
-  headers: Headers;
   query: URLSearchParams;
 }
 
@@ -121,20 +120,11 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
   return {};
 }
 
-function headerValues(headers: Headers): Record<string, string> {
-  const values = dictionary<string>();
-  headers.forEach((value, key) => {
-    values[key] = value;
-  });
-  return values;
-}
-
 export async function bind<T extends object = Record<string, unknown>>(context: BindContext): Promise<T> {
   const body = await readBody(context.request);
   return {
     ...body,
     ...queryValues(context.query),
-    ...headerValues(context.headers),
     ...context.params,
   } as T;
 }

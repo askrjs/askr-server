@@ -17,21 +17,20 @@ const app = createServerApp({
 
 const queryRequest = new Request(
   "http://example.test/items/42?tag=one&tag=two&view=full&locale=en",
-  { method: "POST", headers: { "x-request-id": "request-1", "if-match": "version-1" } },
+  { method: "POST" },
 );
 const queryUrl = new URL(queryRequest.url);
 
-bench("merge route, query, and headers without dispatch", async () => {
+bench("merge route and query without dispatch", async () => {
   sink = await bind({
     request: queryRequest,
     params: { id: "42" },
     url: queryUrl,
-    headers: queryRequest.headers,
     query: queryUrl.searchParams,
   });
 });
 
-bench("bind route, query, and header values", async () => {
+bench("bind route and query values", async () => {
   await app.fetch(queryRequest);
   void sink;
 });

@@ -156,7 +156,7 @@ function supports(leaf: Leaf, method: string): boolean {
 }
 
 function decode(candidate: Candidate): Params {
-  const params: Params = {};
+  const params = { __proto__: null } as unknown as Params;
   try {
     candidate.leaf.parameterNames.forEach((name, index) => {
       const raw = candidate.values[index] ?? "";

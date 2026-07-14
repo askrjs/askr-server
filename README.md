@@ -59,21 +59,19 @@ when both contain the exact same key:
 | --- | --- | --- |
 | 1 | JSON or form body | JSON values, form strings, and uploaded `File` objects |
 | 2 | Query string | Strings; repeated keys become `string[]` |
-| 3 | Request headers | Strings using the Fetch API's lowercase header names |
-| 4 | Route parameters | Decoded strings; these are authoritative |
+| 3 | Route parameters | Decoded strings; these are authoritative |
 
 ```ts
 interface UpdateUserModel {
   id: string;
   name?: string;
   tag?: string | string[];
-  "if-match"?: string;
 }
 
 router.patch("/users/{id}", async (ctx) => {
   const model = await ctx.bind<UpdateUserModel>();
   // /users/42?tag=admin&tag=editor binds:
-  // { ...body, tag: ["admin", "editor"], "if-match": "...", id: "42" }
+  // { ...body, tag: ["admin", "editor"], id: "42" }
   return ctx.ok(await users.update(model));
 });
 ```
@@ -97,10 +95,10 @@ objects, coerce strings into numbers or booleans, or validate a schema. The
 generic argument supplies only a TypeScript view of the result. Use explicit
 validation after binding when values cross a trust boundary.
 
-All request headers—including authorization and cookie headers—participate in
-the flat model. Avoid logging or returning the complete bound object when it
-may contain credentials. Header names are lowercase; body, query, and route
-keys retain their original casing, so collision precedence is case-sensitive.
+Request headers are deliberately excluded from the model. Read a required
+header explicitly through `ctx.headers`, for example
+`ctx.headers.get("if-match")`. Body, query, and route keys retain their original
+casing, so collision precedence is case-sensitive.
 
 ## WebSocket upgrades
 

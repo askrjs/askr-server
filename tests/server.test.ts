@@ -347,7 +347,7 @@ describe("one auth context dispatch", () => {
   });
 });
 
-describe("existing bind contract", () => {
+describe("bind integration", () => {
   it("should preserve bind behavior until its standalone redesign", async () => {
     const app = createServerApp({
       routes: [{ path: "/items/{id}", method: "POST", handler: async (context) => context.json(await context.bind()) }],
@@ -357,11 +357,12 @@ describe("existing bind contract", () => {
       headers: { "content-type": "application/json", "x-source": "test" },
       body: JSON.stringify({ name: "Ada" }),
     }));
-    await expect(response.json()).resolves.toMatchObject({
+    const result = await response.json() as Record<string, unknown>;
+    expect(result).toMatchObject({
       name: "Ada",
       view: "full",
       id: "42",
-      "x-source": "test",
     });
+    expect(result["x-source"]).toBeUndefined();
   });
 });
