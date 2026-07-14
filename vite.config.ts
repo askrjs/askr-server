@@ -8,6 +8,7 @@ export default defineConfig({
       http: "src/http/index.ts",
       middleware: "src/middleware/index.ts",
       askr: "src/askr/index.ts",
+      openapi: "src/openapi/index.ts",
     },
     format: ["esm"],
     outDir: "dist",

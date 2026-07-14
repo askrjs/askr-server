@@ -21,10 +21,18 @@ describe("server architecture", () => {
   });
 
   it("should reject implementation inside a package index barrel", () => {
-    for (const file of ["src/index.ts", "src/http/index.ts", "src/router/index.ts", "src/middleware/index.ts"]) {
+    for (const file of ["src/index.ts", "src/http/index.ts", "src/router/index.ts", "src/middleware/index.ts", "src/openapi/index.ts"]) {
       const lines = readFileSync(resolve(root, file), "utf8").split("\n").filter(Boolean);
       expect(lines.every((line) => line.startsWith("export ")), file).toBe(true);
       expect(lines.length, file).toBeLessThanOrEqual(80);
+    }
+  });
+
+  it("should keep OpenAPI isolated from the root and binding implementation", () => {
+    const rootEntry = readFileSync(resolve(root, "src/index.ts"), "utf8");
+    expect(rootEntry).not.toMatch(/openapi/i);
+    for (const file of files(resolve(root, "src/openapi"))) {
+      expect(readFileSync(file, "utf8"), relative(root, file)).not.toMatch(/(?:\.\.\/binding|from ["']@askrjs\/server["'])/);
     }
   });
 

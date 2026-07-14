@@ -121,3 +121,51 @@ const app = createServerApp({
 Returning `false` or throwing produces `503`; returning nothing or `true`
 produces `200`. A probe may also return its own `Response`. Explicit API routes
 take precedence over the built-in paths.
+
+## OpenAPI route definitions
+
+Import the strict API registry from `@askrjs/server/openapi` when an HTTP route
+belongs in the published contract. One fluent definition owns the handler,
+dependency injection, and OpenAPI metadata:
+
+```ts
+import { requireUser } from "@askrjs/auth";
+import { createApi, schema, security } from "@askrjs/server/openapi";
+
+const api = createApi<AppDependencies>({
+  info: { title: "Users API", version: "1.0.0" },
+  securitySchemes: { bearer: security.httpBearer({ bearerFormat: "JWT" }) },
+});
+
+const User = api.schema("User", schema.object({
+  id: schema.uuid({ description: "User ID" }),
+  name: schema.string(),
+}));
+
+api.group("/api/users").tags("Users")
+  .get("/{id}", async (ctx, { users }) => {
+    const user = await users.find(ctx.params.id);
+    return user ? ctx.ok(user) : ctx.notFound("User not found");
+  })
+  .operationId("getUser")
+  .summary("Get a user")
+  .pathParam("id", schema.uuid())
+  .access(requireUser(), security.require("bearer"))
+  .ok(User)
+  .notFound();
+
+const router = api.createRouter(createDependencies());
+const document = api.toOpenApiDocument();
+```
+
+Finalization rejects incomplete or ambiguous contracts, including missing or
+duplicate operation IDs, undocumented responses, mismatched path parameters,
+wildcards, and unresolved schema or security references. Document generation
+does not execute handlers or construct dependencies. The returned OpenAPI 3.1.2
+object is deterministic and deeply frozen; YAML serialization belongs to the
+CLI or another outer adapter.
+
+Keep WebSockets, `CONNECT`, wildcard fallbacks, probes, and intentionally
+undocumented routes on the generic router. OpenAPI schemas describe the
+contract only: request and response validation is not performed, and `ctx.bind()`
+keeps its existing behavior.

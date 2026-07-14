@@ -30,6 +30,10 @@
     "./askr": {
       "types": "./dist/askr.d.ts",
       "import": "./dist/askr.js"
+    },
+    "./openapi": {
+      "types": "./dist/openapi.d.ts",
+      "import": "./dist/openapi.js"
     }
   },
   "scripts": {
