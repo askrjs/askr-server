@@ -2,6 +2,7 @@
   "name": "@askrjs/server",
   "version": "0.0.1",
   "description": "Transport-neutral HTTP application core built on Web Request and Response",
+  "license": "Apache-2.0",
   "files": [
     "dist/**/*.js",
     "dist/**/*.d.ts"
