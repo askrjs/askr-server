@@ -20,7 +20,9 @@ function deferredPage() {
 describe("Askr page streaming", () => {
   it("should pass through deferred chunks while preserving fragment metadata", async () => {
     let release!: (value: string) => void;
-    const pending = new Promise<string>((resolve) => { release = resolve; });
+    const pending = new Promise<string>((resolve) => {
+      release = resolve;
+    });
     const registry = createRouteRegistry(() => {
       route("/deferred", deferredPage, {
         loader: () => ({ message: defer(pending) }),
@@ -50,9 +52,9 @@ describe("Askr page streaming", () => {
       remainder += decoder.decode(chunk.value, { stream: true });
     }
     remainder += decoder.decode();
-    expect(remainder).toContain("data-askr-deferred-patch=\"d:0\"");
+    expect(remainder).toContain('data-askr-deferred-patch="d:0"');
     expect(remainder).toContain("ready:complete");
-    expect(remainder).toContain("data-askr-render-data=\"true\"");
+    expect(remainder).toContain('data-askr-render-data="true"');
   });
 
   it("should close a deferred response cleanly when the request aborts", async () => {

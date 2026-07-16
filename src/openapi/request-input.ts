@@ -7,11 +7,7 @@ export type OperationInputResult<Input extends ApiInput> =
   | { readonly success: false; readonly status: 400; readonly detail: string }
   | { readonly success: false; readonly status: 422; readonly issues: readonly Issue[] };
 
-function appendValue(
-  output: Record<string, unknown>,
-  key: string,
-  value: unknown,
-): void {
+function appendValue(output: Record<string, unknown>, key: string, value: unknown): void {
   if (!Object.hasOwn(output, key)) {
     output[key] = value;
     return;
@@ -30,7 +26,10 @@ function mediaType(request: Request): string | undefined {
   return request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
 }
 
-async function readBody(request: Request, declaration: ApiBodyInput): Promise<
+async function readBody(
+  request: Request,
+  declaration: ApiBodyInput,
+): Promise<
   | { readonly success: true; readonly data: unknown }
   | { readonly success: false; readonly detail: string }
 > {
@@ -92,18 +91,20 @@ export async function readOperationInput<Input extends ApiInput>(
   const data: Record<string, unknown> = {};
   const issues: Issue[] = [];
   for (const source of ["params", "query", "headers", "body"] as const) {
-    const value = source === "body"
-      ? input.body?.schema
-      : input[source];
+    const value = source === "body" ? input.body?.schema : input[source];
     if (!value) continue;
     const result = value.safeParse(sources[source]);
     if (result.success) {
       data[source] = result.data;
     } else {
-      issues.push(...result.issues.map((entry: Issue) => Object.freeze({
-        ...entry,
-        path: Object.freeze([source, ...entry.path]),
-      })));
+      issues.push(
+        ...result.issues.map((entry: Issue) =>
+          Object.freeze({
+            ...entry,
+            path: Object.freeze([source, ...entry.path]),
+          }),
+        ),
+      );
     }
   }
   return issues.length

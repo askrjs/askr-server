@@ -1,7 +1,4 @@
-import {
-  renderRouteRequest,
-  type RenderRouteRequestResult,
-} from "@askrjs/askr/ssr";
+import { renderRouteRequest, type RenderRouteRequestResult } from "@askrjs/askr/ssr";
 import type { ServerQueryRegistry } from "@askrjs/askr/data";
 import type {
   ParsedSegment,
@@ -56,10 +53,7 @@ async function translate(
   if (result.kind === "deny") return new Response(null, { status: result.status });
   const headers = new Headers({ "content-type": "text/html; charset=utf-8; askr-fragment=1" });
   if (result.record) {
-    const metadata = await resolveRouteMeta(
-      result.record,
-      routeContext(context, result.params),
-    );
+    const metadata = await resolveRouteMeta(result.record, routeContext(context, result.params));
     const head = headerValue(serializeRouteMeta(metadata));
     if (head) headers.set("x-askr-head", head);
     if (metadata.html?.lang) {
@@ -71,9 +65,7 @@ async function translate(
 }
 
 function splitPath(pathname: string): string[] {
-  const normalized = pathname.endsWith("/") && pathname !== "/"
-    ? pathname.slice(0, -1)
-    : pathname;
+  const normalized = pathname.endsWith("/") && pathname !== "/" ? pathname.slice(0, -1) : pathname;
   return normalized === "/" ? [] : normalized.replace(/^\//, "").split("/");
 }
 
@@ -90,7 +82,9 @@ function matchSegments(
   segments: readonly ParsedSegment[],
 ): Record<string, string> | undefined {
   if (segments.length === 1 && segments[0]?.kind === "catchall") {
-    return { "*": parts.length === 0 ? "/" : parts.length === 1 ? parts[0]! : `/${parts.join("/")}` };
+    return {
+      "*": parts.length === 0 ? "/" : parts.length === 1 ? parts[0]! : `/${parts.join("/")}`,
+    };
   }
   const splat = segments.findIndex((segment) => segment.kind === "splat");
   if (splat === -1 && parts.length !== segments.length) return undefined;
@@ -127,10 +121,7 @@ function findRoute(
   return undefined;
 }
 
-function routeContext(
-  context: ServerContext,
-  params: Record<string, string>,
-): RouteContext {
+function routeContext(context: ServerContext, params: Record<string, string>): RouteContext {
   return {
     mode: "ssr",
     params,

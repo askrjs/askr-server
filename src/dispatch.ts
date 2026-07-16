@@ -17,7 +17,8 @@ async function runMiddleware(
 ): Promise<Response> {
   let index = -1;
   const dispatch = async (nextIndex: number): Promise<Response> => {
-    if (nextIndex <= index) throw new Error("next() may only be called once per middleware invocation");
+    if (nextIndex <= index)
+      throw new Error("next() may only be called once per middleware invocation");
     index = nextIndex;
     const current = middleware[nextIndex];
     return current ? current(context, () => dispatch(nextIndex + 1)) : terminal(context);
@@ -38,7 +39,8 @@ async function executeRoute(route: ApiRoute, context: ServerContext): Promise<Re
     if (response) return response;
   }
   return runMiddleware(route.middleware ?? [], context, async () =>
-    route.upgrade ? context.upgrade(route.upgrade) : route.handler(context));
+    route.upgrade ? context.upgrade(route.upgrade) : route.handler(context),
+  );
 }
 
 function probeFor(pathname: string, probes?: ProbeOptions): ProbeHandler | undefined {
@@ -53,7 +55,10 @@ function isProbe(pathname: string): boolean {
   return ["/livez", "/readyz", "/startupz", "/targetz"].includes(pathname);
 }
 
-async function runProbe(handler: ProbeHandler | undefined, context: ServerContext): Promise<Response> {
+async function runProbe(
+  handler: ProbeHandler | undefined,
+  context: ServerContext,
+): Promise<Response> {
   try {
     const result = handler ? await handler(context) : undefined;
     if (result instanceof Response) return result;
@@ -85,9 +90,10 @@ export function createTerminal(
     if (found.match) {
       response = await executeRoute(found.match.route, context);
     } else if (found.allowed.length) {
-      response = context.request.method === "OPTIONS"
-        ? new Response(null, { status: 204, headers: { allow: found.allowed.join(", ") } })
-        : methodNotAllowed(found.allowed);
+      response =
+        context.request.method === "OPTIONS"
+          ? new Response(null, { status: 204, headers: { allow: found.allowed.join(", ") } })
+          : methodNotAllowed(found.allowed);
     } else if (
       (context.request.method === "GET" || context.request.method === "HEAD") &&
       isProbe(context.url.pathname)

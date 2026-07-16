@@ -1,8 +1,14 @@
 import { createRouter, type PathParams } from "../../dist/index.js";
 import { createApi, schema, type InferSchema } from "../../dist/openapi.js";
-import { defineServerActions, handleAction, createAskrPageHandler } from "../../dist/askr.js";
+import {
+  createAskrApp,
+  createAskrPageHandler,
+  defineServerActions,
+  handleAction,
+} from "../../dist/askr.js";
 import type { ActionDescriptor } from "@askrjs/askr/actions";
 import type { RouteManifest } from "@askrjs/askr/router";
+import type { RouteRegistry } from "@askrjs/askr/router";
 
 const router = createRouter();
 router.get("/users/{id}", (ctx) => {
@@ -48,33 +54,42 @@ void directParams;
 
 type Dependencies = { store: { read(id: string): string } };
 const dependent = createApi<Dependencies>({ info: { title: "Dependent", version: "1" } });
-dependent.get("/items/{id}", (ctx, dependencies) => {
-  void dependencies.store.read(ctx.params.id);
-  // @ts-expect-error OpenAPI literal paths expose only declared parameters
-  void ctx.params.other;
-  return ctx.ok();
-}).operationId("getItem").summary("Get item").pathParam("id", schema.string()).ok();
+dependent
+  .get("/items/{id}", (ctx, dependencies) => {
+    void dependencies.store.read(ctx.params.id);
+    // @ts-expect-error OpenAPI literal paths expose only declared parameters
+    void ctx.params.other;
+    return ctx.ok();
+  })
+  .operationId("getItem")
+  .summary("Get item")
+  .pathParam("id", schema.string())
+  .ok();
 // @ts-expect-error declared dependencies are required
 dependent.createRouter();
 // @ts-expect-error undefined does not satisfy declared dependencies
 dependent.createRouter(undefined);
 dependent.createRouter({ store: { read: (id) => id } });
 
-dependent.post("/items/{id}", {
-  input: {
-    params: schema.object({ id: schema.string() }),
-    body: {
-      schema: schema.object({ name: schema.string() }),
-      mediaTypes: ["application/json"],
+dependent
+  .post("/items/{id}", {
+    input: {
+      params: schema.object({ id: schema.string() }),
+      body: {
+        schema: schema.object({ name: schema.string() }),
+        mediaTypes: ["application/json"],
+      },
     },
-  },
-  handler: (ctx, input, dependencies) => {
-    input.params.id satisfies string;
-    input.body.name satisfies string;
-    dependencies.store.read(ctx.params.id) satisfies string;
-    return ctx.ok();
-  },
-}).operationId("updateItem").summary("Update item").ok();
+    handler: (ctx, input, dependencies) => {
+      input.params.id satisfies string;
+      input.body.name satisfies string;
+      dependencies.store.read(ctx.params.id) satisfies string;
+      return ctx.ok();
+    },
+  })
+  .operationId("updateItem")
+  .summary("Update item")
+  .ok();
 
 const canonicalInput = dependent.post("/canonical", {
   input: { query: schema.object({ page: schema.integer() }) },
@@ -87,12 +102,18 @@ const dependencyFree = createApi({ info: { title: "Free", version: "1" } });
 dependencyFree.createRouter();
 
 const grouped = createApi({ info: { title: "Grouped", version: "1" } });
-grouped.group("/tenants/{tenant}").get("/items/{id}", (ctx) => {
-  ctx.params.tenant satisfies string;
-  ctx.params.id satisfies string;
-  return ctx.ok();
-}).operationId("groupedItem").summary("Grouped item")
-  .pathParam("tenant", schema.string()).pathParam("id", schema.string()).ok();
+grouped
+  .group("/tenants/{tenant}")
+  .get("/items/{id}", (ctx) => {
+    ctx.params.tenant satisfies string;
+    ctx.params.id satisfies string;
+    return ctx.ok();
+  })
+  .operationId("groupedItem")
+  .summary("Grouped item")
+  .pathParam("tenant", schema.string())
+  .pathParam("id", schema.string())
+  .ok();
 
 const ObjectSchema = schema.object({
   required: schema.string(),
@@ -141,10 +162,38 @@ const SaveAction = {
   input: schema.object({ name: schema.string() }),
   invalidates: ["items:"],
 } satisfies ActionDescriptor<{ name: string }>;
-const actions = defineServerActions({ dependencies: { store: { write: (name: string) => name } }, csrf: false }, handleAction(SaveAction, (context, input, dependencies) => {
-  context.params.id satisfies string;
-  input.name satisfies string;
-  return { result: dependencies.store.write(input.name) };
-}));
+const actions = defineServerActions(
+  { dependencies: { store: { write: (name: string) => name } }, csrf: false },
+  handleAction(SaveAction, (context, input, dependencies) => {
+    context.params.id satisfies string;
+    input.name satisfies string;
+    return { result: dependencies.store.write(input.name) };
+  }),
+);
 declare const manifest: RouteManifest;
 createAskrPageHandler({ manifest, actions });
+
+declare const pages: RouteRegistry;
+const composed = createAskrApp({
+  name: "Typed",
+  version: "1",
+  dependencies: { store: { read: () => "value" } },
+  pages,
+  api: {
+    define(api) {
+      api
+        .get("/value", (_context, dependencies) => {
+          dependencies.store.read() satisfies string;
+          return new Response();
+        })
+        .operationId("getValue")
+        .summary("Get value")
+        .ok();
+    },
+  },
+  close(dependencies) {
+    dependencies.store.read() satisfies string;
+  },
+});
+composed.fetch(new Request("https://example.test")) satisfies Promise<Response>;
+composed.close() satisfies Promise<void>;

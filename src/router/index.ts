@@ -1,2 +1,9 @@
 export * from "./router";
-export type { ApiRoute, ApiRouteOptions, Handler, Middleware, RouteBuilder, Router, WebSocketHandler } from "../contracts";
+export type { RouteBuilder, Router } from "./contracts";
+export type {
+  ApiRoute,
+  ApiRouteOptions,
+  Handler,
+  Middleware,
+  WebSocketHandler,
+} from "../contracts";

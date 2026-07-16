@@ -27,10 +27,7 @@ export function text(value: string, init?: ResponseInit): Response {
   });
 }
 
-export function redirect(
-  location: string,
-  status: 301 | 302 | 303 | 307 | 308 = 302,
-): Response {
+export function redirect(location: string, status: 301 | 302 | 303 | 307 | 308 = 302): Response {
   return new Response(null, { status, headers: { location } });
 }
 
@@ -84,21 +81,32 @@ export const ok = (value?: JsonValue, init?: ResponseInit) => withStatus(200, va
 export const created = (value?: JsonValue, init?: ResponseInit) => withStatus(201, value, init);
 export const accepted = (value?: JsonValue, init?: ResponseInit) => withStatus(202, value, init);
 export const noContent = (init?: ResponseInit) => withStatus(204, undefined, init);
-export const badRequest = (detail = "Bad Request", init?: ResponseInit) => message(400, detail, init);
+export const badRequest = (detail = "Bad Request", init?: ResponseInit) =>
+  message(400, detail, init);
 export const bad = badRequest;
-export const unauthorized = (detail = "Unauthorized", init?: ResponseInit) => message(401, detail, init);
+export const unauthorized = (detail = "Unauthorized", init?: ResponseInit) =>
+  message(401, detail, init);
 export const forbidden = (detail = "Forbidden", init?: ResponseInit) => message(403, detail, init);
 export const notFound = (detail = "Not Found", init?: ResponseInit) => message(404, detail, init);
 export const conflict = (detail = "Conflict", init?: ResponseInit) => message(409, detail, init);
-export const unprocessableEntity = (detail = "Unprocessable Entity", init?: ResponseInit) => message(422, detail, init);
-export const tooManyRequests = (detail = "Too Many Requests", init?: ResponseInit) => message(429, detail, init);
-export const notImplemented = (detail = "Not Implemented", init?: ResponseInit) => message(501, detail, init);
-export const serviceUnavailable = (detail = "Service Unavailable", init?: ResponseInit) => message(503, detail, init);
-export const error = (status = 500, detail = "Internal Server Error", init?: ResponseInit) => message(status, detail, init);
-export const internalServerError = (detail = "Internal Server Error", init?: ResponseInit) => error(500, detail, init);
+export const unprocessableEntity = (detail = "Unprocessable Entity", init?: ResponseInit) =>
+  message(422, detail, init);
+export const tooManyRequests = (detail = "Too Many Requests", init?: ResponseInit) =>
+  message(429, detail, init);
+export const notImplemented = (detail = "Not Implemented", init?: ResponseInit) =>
+  message(501, detail, init);
+export const serviceUnavailable = (detail = "Service Unavailable", init?: ResponseInit) =>
+  message(503, detail, init);
+export const error = (status = 500, detail = "Internal Server Error", init?: ResponseInit) =>
+  message(status, detail, init);
+export const internalServerError = (detail = "Internal Server Error", init?: ResponseInit) =>
+  error(500, detail, init);
 export const serverError = internalServerError;
 
-export function methodNotAllowed(allow?: string | readonly string[], init?: ResponseInit): Response {
+export function methodNotAllowed(
+  allow?: string | readonly string[],
+  init?: ResponseInit,
+): Response {
   const headers = responseHeaders(init);
   if (allow) headers.set("allow", typeof allow === "string" ? allow : allow.join(", "));
   return problem(405, undefined, { init: { ...init, headers } });
@@ -110,7 +118,8 @@ function serializeCookie(name: string, value: string, options: CookieOptions = {
   if (options.expires) parts.push(`Expires=${options.expires.toUTCString()}`);
   if (options.domain) parts.push(`Domain=${options.domain}`);
   if (options.path) parts.push(`Path=${options.path}`);
-  if (options.sameSite) parts.push(`SameSite=${options.sameSite[0].toUpperCase()}${options.sameSite.slice(1)}`);
+  if (options.sameSite)
+    parts.push(`SameSite=${options.sameSite[0].toUpperCase()}${options.sameSite.slice(1)}`);
   if (options.httpOnly) parts.push("HttpOnly");
   if (options.secure) parts.push("Secure");
   return parts.join("; ");
@@ -127,7 +136,11 @@ export function setCookie(
   return next;
 }
 
-export function clearCookie(response: Response, name: string, options: CookieOptions = {}): Response {
+export function clearCookie(
+  response: Response,
+  name: string,
+  options: CookieOptions = {},
+): Response {
   return setCookie(response, name, "", { ...options, expires: new Date(0), maxAge: 0 });
 }
 

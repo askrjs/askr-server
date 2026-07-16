@@ -42,9 +42,7 @@ function pathSegments(path: string): string[] {
 }
 
 function parameterName(segment: string): string | undefined {
-  return segment.startsWith("{") && segment.endsWith("}")
-    ? segment.slice(1, -1).trim()
-    : undefined;
+  return segment.startsWith("{") && segment.endsWith("}") ? segment.slice(1, -1).trim() : undefined;
 }
 
 function parameterChild(parent: Node): Node {
@@ -82,8 +80,9 @@ function addRoute(root: Node, route: ApiRoute, order: number): void {
       current = child;
     }
   }
-  const methods = (typeof route.method === "string" ? [route.method] : route.method ?? ["GET"])
-    .map((method) => method.toUpperCase());
+  const methods = (
+    typeof route.method === "string" ? [route.method] : (route.method ?? ["GET"])
+  ).map((method) => method.toUpperCase());
   current.leaves.push({ route, methods, order, parameterNames: names });
 }
 
@@ -112,7 +111,14 @@ function collect(
   const staticChild = current.static.get(part);
   if (staticChild) collect(staticChild, parts, index + 1, values, [...specificity, 2], candidates);
   if (current.parameter) {
-    collect(current.parameter, parts, index + 1, [...values, part], [...specificity, 1], candidates);
+    collect(
+      current.parameter,
+      parts,
+      index + 1,
+      [...values, part],
+      [...specificity, 1],
+      candidates,
+    );
   }
   if (current.namedWildcard) {
     for (const leaf of current.namedWildcard.leaves) {
@@ -163,7 +169,9 @@ function decode(candidate: Candidate): Params {
       params[name] = raw.split("/").map(decodeURIComponent).join("/");
     });
   } catch (error) {
-    throw new MalformedPathParameterError("A route parameter contains invalid percent-encoding.", { cause: error });
+    throw new MalformedPathParameterError("A route parameter contains invalid percent-encoding.", {
+      cause: error,
+    });
   }
   return params;
 }
@@ -171,7 +179,9 @@ function decode(candidate: Candidate): Params {
 function allowedMethods(candidates: readonly Candidate[]): string[] {
   const allowed: string[] = [];
   const seen = new Set<string>();
-  for (const candidate of [...candidates].sort((left, right) => left.leaf.order - right.leaf.order)) {
+  for (const candidate of [...candidates].sort(
+    (left, right) => left.leaf.order - right.leaf.order,
+  )) {
     for (const method of candidate.leaf.methods) {
       if (!seen.has(method)) {
         seen.add(method);

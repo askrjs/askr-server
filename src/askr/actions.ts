@@ -28,7 +28,11 @@ export interface ActionHandlerContext {
   readonly signal: AbortSignal;
 }
 
-export type ActionHandler<Dependencies, Input extends Record<string, unknown> = Record<string, unknown>, Result = unknown> = (
+export type ActionHandler<
+  Dependencies,
+  Input extends Record<string, unknown> = Record<string, unknown>,
+  Result = unknown,
+> = (
   context: ActionHandlerContext,
   input: Input,
   dependencies: Dependencies,
@@ -36,12 +40,14 @@ export type ActionHandler<Dependencies, Input extends Record<string, unknown> = 
 
 export interface ActionRegistryOptions {
   /** Page actions are protected by default. Set false only for an intentional non-session flow. */
-  readonly csrf?: false | {
-    readonly secret?: string;
-    readonly sessionId?: (context: ServerContext) => string | undefined;
-    readonly header?: string;
-    readonly formField?: string;
-  };
+  readonly csrf?:
+    | false
+    | {
+        readonly secret?: string;
+        readonly sessionId?: (context: ServerContext) => string | undefined;
+        readonly header?: string;
+        readonly formField?: string;
+      };
   readonly randomSecret?: () => string;
 }
 
@@ -71,7 +77,11 @@ export interface ActionRegistry<Dependencies> {
   ): Promise<ActionExecution | undefined>;
 }
 
-export interface ActionEntry<Dependencies, Input extends Record<string, unknown> = Record<string, unknown>, Result = unknown> {
+export interface ActionEntry<
+  Dependencies,
+  Input extends Record<string, unknown> = Record<string, unknown>,
+  Result = unknown,
+> {
   readonly descriptor: ActionDescriptor<Input>;
   readonly handler: ActionHandler<Dependencies, Input, Result>;
 }
@@ -93,8 +103,13 @@ function randomSecret(): string {
 }
 
 function requestAcceptsEnvelope(context: ServerContext): boolean {
-  return context.headers.get("accept")?.split(",").some((value) =>
-    value.trim().toLowerCase().startsWith("application/vnd.askr.action+json")) ?? false;
+  return (
+    context.headers
+      .get("accept")
+      ?.split(",")
+      .some((value) => value.trim().toLowerCase().startsWith("application/vnd.askr.action+json")) ??
+    false
+  );
 }
 
 function appendValue(output: Record<string, unknown>, key: string, value: unknown): void {
@@ -111,7 +126,12 @@ async function readSubmission(
   csrfHeader: string,
   csrfField: string,
 ): Promise<
-  | { readonly success: true; readonly id?: string; readonly csrf?: string; readonly values: Record<string, unknown> }
+  | {
+      readonly success: true;
+      readonly id?: string;
+      readonly csrf?: string;
+      readonly values: Record<string, unknown>;
+    }
   | { readonly success: false; readonly response: Response }
 > {
   const type = context.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
@@ -120,27 +140,47 @@ async function readSubmission(
   try {
     if (type === "application/json" || type?.endsWith("+json")) {
       const source = await context.request.clone().text();
-      if (!source.trim()) return { success: false, response: context.badRequest("Action request contains empty JSON.") };
+      if (!source.trim())
+        return {
+          success: false,
+          response: context.badRequest("Action request contains empty JSON."),
+        };
       const value = JSON.parse(source) as unknown;
       if (!value || typeof value !== "object" || Array.isArray(value)) {
-        return { success: false, response: context.badRequest("Action request body must be an object.") };
+        return {
+          success: false,
+          response: context.badRequest("Action request body must be an object."),
+        };
       }
-      return { success: true, id: idHeader, csrf: csrfHeaderValue, values: value as Record<string, unknown> };
+      return {
+        success: true,
+        id: idHeader,
+        csrf: csrfHeaderValue,
+        values: value as Record<string, unknown>,
+      };
     }
     if (type === "application/x-www-form-urlencoded" || type === "multipart/form-data") {
       const values: Record<string, unknown> = {};
       for (const [key, value] of (await context.request.clone().formData()).entries()) {
         appendValue(values, key, value);
       }
-      const id = idHeader ?? (typeof values._askr_action === "string" ? values._askr_action : undefined);
-      const token = csrfHeaderValue ?? (typeof values[csrfField] === "string" ? values[csrfField] : undefined);
+      const id =
+        idHeader ?? (typeof values._askr_action === "string" ? values._askr_action : undefined);
+      const token =
+        csrfHeaderValue ?? (typeof values[csrfField] === "string" ? values[csrfField] : undefined);
       delete values._askr_action;
       delete values[csrfField];
       return { success: true, id, csrf: token, values };
     }
-    return { success: false, response: context.badRequest("Action request has an unsupported content type.") };
+    return {
+      success: false,
+      response: context.badRequest("Action request has an unsupported content type."),
+    };
   } catch {
-    return { success: false, response: context.badRequest("Action request body could not be read.") };
+    return {
+      success: false,
+      response: context.badRequest("Action request body could not be read."),
+    };
   }
 }
 
@@ -149,17 +189,20 @@ export function defineServerActions<Dependencies>(
   ...entries: readonly ActionEntry<Dependencies, any, any>[]
 ): ActionRegistry<Dependencies> {
   const { dependencies } = options;
-  const csrf = options.csrf === false
-    ? false
-    : {
-        secret: options.csrf?.secret ?? (options.randomSecret ?? randomSecret)(),
-        sessionId: options.csrf?.sessionId ?? ((context: ServerContext) => context.auth.session?.id),
-        header: options.csrf?.header ?? "x-askr-csrf-token",
-        formField: options.csrf?.formField ?? "_csrf",
-      };
+  const csrf =
+    options.csrf === false
+      ? false
+      : {
+          secret: options.csrf?.secret ?? (options.randomSecret ?? randomSecret)(),
+          sessionId:
+            options.csrf?.sessionId ?? ((context: ServerContext) => context.auth.session?.id),
+          header: options.csrf?.header ?? "x-askr-csrf-token",
+          formField: options.csrf?.formField ?? "_csrf",
+        };
   const handlers = new Map<string, RegisteredAction<Dependencies>>();
   for (const entry of entries) {
-    if (handlers.has(entry.descriptor.id)) throw new Error(`Duplicate action ${entry.descriptor.id}.`);
+    if (handlers.has(entry.descriptor.id))
+      throw new Error(`Duplicate action ${entry.descriptor.id}.`);
     handlers.set(entry.descriptor.id, entry as RegisteredAction<Dependencies>);
   }
 
@@ -182,12 +225,12 @@ export function defineServerActions<Dependencies>(
       const enhanced = requestAcceptsEnvelope(context);
       const entry = authorizedAction(handlers, executionOptions.authorized, submission.id);
       if (!entry) return { kind: "response", response: context.notFound() };
-      const requestId = typeof context.state.requestId === "string"
-        ? context.state.requestId
-        : undefined;
-      const traceId = typeof context.state.traceId === "string"
-        ? context.state.traceId
-        : context.telemetry?.traceId();
+      const requestId =
+        typeof context.state.requestId === "string" ? context.state.requestId : undefined;
+      const traceId =
+        typeof context.state.traceId === "string"
+          ? context.state.traceId
+          : context.telemetry?.traceId();
       const fields = {
         requestId,
         traceId,
@@ -223,9 +266,7 @@ export function defineServerActions<Dependencies>(
       if (context.telemetry) {
         await context.telemetry.action(fields, async () => {
           result = await run();
-          return result.kind === "response"
-            ? result.response
-            : new Response(null, { status: 422 });
+          return result.kind === "response" ? result.response : new Response(null, { status: 422 });
         });
       } else {
         result = await run();

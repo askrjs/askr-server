@@ -8,7 +8,10 @@ export interface CsrfOptions {
 }
 
 function encode(value: Uint8Array): string {
-  return btoa(String.fromCharCode(...value)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  return btoa(String.fromCharCode(...value))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
 }
 
 function decode(value: string): Uint8Array<ArrayBuffer> | undefined {
@@ -36,7 +39,9 @@ async function hmacKey(secret: string): Promise<CryptoKey> {
 
 async function signature(secret: string, session: string): Promise<string> {
   const key = await hmacKey(secret);
-  return encode(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(session))));
+  return encode(
+    new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(session))),
+  );
 }
 
 export async function verifyCsrfToken(
@@ -45,15 +50,15 @@ export async function verifyCsrfToken(
   token: string,
 ): Promise<boolean> {
   const bytes = decode(token);
-  return bytes !== undefined && crypto.subtle.verify(
-    "HMAC",
-    await hmacKey(secret),
-    bytes,
-    new TextEncoder().encode(sessionId),
+  return (
+    bytes !== undefined &&
+    crypto.subtle.verify("HMAC", await hmacKey(secret), bytes, new TextEncoder().encode(sessionId))
   );
 }
 
-export async function createCsrfToken(secret: string, sessionId: string): Promise<string> { return signature(secret, sessionId); }
+export async function createCsrfToken(secret: string, sessionId: string): Promise<string> {
+  return signature(secret, sessionId);
+}
 
 export function csrf(options: CsrfOptions): Middleware {
   if (!options.secret) throw new Error("csrf requires a non-empty secret.");
@@ -64,9 +69,12 @@ export function csrf(options: CsrfOptions): Middleware {
     const session = options.sessionId?.(context) ?? context.auth.session?.id;
     if (!session) return context.forbidden("A session is required for this request.");
     let supplied = context.headers.get(header);
-    if (!supplied && /^(?:application\/x-www-form-urlencoded|multipart\/form-data)(?:;|$)/i.test(
-      context.request.headers.get("content-type") ?? "",
-    )) {
+    if (
+      !supplied &&
+      /^(?:application\/x-www-form-urlencoded|multipart\/form-data)(?:;|$)/i.test(
+        context.request.headers.get("content-type") ?? "",
+      )
+    ) {
       const values = await context.request.clone().formData();
       const value = values.get(field);
       supplied = typeof value === "string" ? value : null;

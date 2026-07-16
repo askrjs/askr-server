@@ -11,7 +11,12 @@ export interface CorsOptions {
 }
 
 function tokens(value: string | null): string[] {
-  return value?.split(",").map((token) => token.trim()).filter(Boolean) ?? [];
+  return (
+    value
+      ?.split(",")
+      .map((token) => token.trim())
+      .filter(Boolean) ?? []
+  );
 }
 
 function mergeVary(headers: Headers, ...values: string[]): void {
@@ -44,18 +49,26 @@ export function cors(options: CorsOptions = {}): Middleware {
   if (options.credentials && configured === "*") {
     throw new TypeError("CORS credentials cannot be used with a wildcard origin.");
   }
-  const methods = (options.methods ?? ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
-    .map((method) => method.toUpperCase());
-  const allowedHeaders = options.allowedHeaders ?? ["content-type", "authorization", "x-request-id"];
+  const methods = (
+    options.methods ?? ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+  ).map((method) => method.toUpperCase());
+  const allowedHeaders = options.allowedHeaders ?? [
+    "content-type",
+    "authorization",
+    "x-request-id",
+  ];
   const allowedHeaderSet = new Set(allowedHeaders.map((header) => header.toLowerCase()));
 
   return async (ctx, next) => {
     const requestOrigin = ctx.request.headers.get("origin");
     if (!requestOrigin) return next();
 
-    const resolved = typeof configured === "function"
-      ? configured(requestOrigin, ctx)
-      : configured === "*" || configured === requestOrigin ? configured : null;
+    const resolved =
+      typeof configured === "function"
+        ? configured(requestOrigin, ctx)
+        : configured === "*" || configured === requestOrigin
+          ? configured
+          : null;
     if (!resolved) return rejected(ctx, "Origin is not allowed");
     if (options.credentials && resolved === "*") {
       throw new TypeError("A dynamic CORS origin cannot return '*' when credentials are enabled.");
@@ -79,7 +92,8 @@ export function cors(options: CorsOptions = {}): Middleware {
       }
       const headers = corsHeaders(resolved, options.credentials === true);
       headers.set("access-control-allow-methods", methods.join(", "));
-      if (requestedHeaders.length) headers.set("access-control-allow-headers", allowedHeaders.join(", "));
+      if (requestedHeaders.length)
+        headers.set("access-control-allow-headers", allowedHeaders.join(", "));
       if (options.maxAgeSeconds !== undefined) {
         headers.set("access-control-max-age", String(options.maxAgeSeconds));
       }

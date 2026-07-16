@@ -19,11 +19,13 @@ describe("request protection", () => {
       middleware: [csrf({ secret })],
       routes: [{ method: "POST", path: "/action", handler: (context) => context.noContent() }],
     });
-    const response = await app.fetch(new Request("http://example.test/action", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ _csrf: token }),
-    }));
+    const response = await app.fetch(
+      new Request("http://example.test/action", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ _csrf: token }),
+      }),
+    );
     expect(response.status).toBe(204);
   });
 
@@ -36,10 +38,12 @@ describe("request protection", () => {
       middleware: [csrf({ secret })],
       routes: [{ method: "POST", path: "/action", handler }],
     });
-    const response = await app.fetch(new Request("http://example.test/action", {
-      method: "POST",
-      headers: { "x-askr-csrf-token": token },
-    }));
+    const response = await app.fetch(
+      new Request("http://example.test/action", {
+        method: "POST",
+        headers: { "x-askr-csrf-token": token },
+      }),
+    );
     expect(response.status).toBe(403);
     expect(handler).not.toHaveBeenCalled();
   });
@@ -47,12 +51,14 @@ describe("request protection", () => {
   it("should return standard limit headers and avoid mutating immutable responses", async () => {
     const now = 1_000;
     const app = createServerApp({
-      middleware: [rateLimit({
-        limit: 2,
-        windowMs: 10_000,
-        now: () => now,
-        store: { consume: async () => ({ allowed: true, remaining: 1, reset: 6_000 }) },
-      })],
+      middleware: [
+        rateLimit({
+          limit: 2,
+          windowMs: 10_000,
+          now: () => now,
+          store: { consume: async () => ({ allowed: true, remaining: 1, reset: 6_000 }) },
+        }),
+      ],
       routes: [{ path: "/", handler: () => Response.redirect("http://example.test/next") }],
     });
     const response = await app.fetch(new Request("http://example.test/"));
@@ -64,12 +70,14 @@ describe("request protection", () => {
 
   it("should return 429 with Retry-After given a rejected store decision", async () => {
     const app = createServerApp({
-      middleware: [rateLimit({
-        limit: 1,
-        windowMs: 10_000,
-        now: () => 1_000,
-        store: { consume: async () => ({ allowed: false, remaining: 0, reset: 3_100 }) },
-      })],
+      middleware: [
+        rateLimit({
+          limit: 1,
+          windowMs: 10_000,
+          now: () => 1_000,
+          store: { consume: async () => ({ allowed: false, remaining: 0, reset: 3_100 }) },
+        }),
+      ],
       routes: [{ path: "/", handler: (context) => context.ok() }],
     });
     const response = await app.fetch(new Request("http://example.test/"));

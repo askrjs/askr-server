@@ -9,6 +9,8 @@ export default defineConfig({
       middleware: "src/middleware/index.ts",
       askr: "src/askr/index.ts",
       openapi: "src/openapi/index.ts",
+      mcp: "src/mcp/index.ts",
+      auth: "src/auth.ts",
     },
     format: ["esm"],
     outDir: "dist",

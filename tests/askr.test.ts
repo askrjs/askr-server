@@ -40,10 +40,15 @@ describe("Askr page fallback", () => {
     });
     const app = createServerApp({
       auth: { resolve: async () => user },
-      routes: [{ path: "/api", handler: (context) => {
-        apiAuth = context.auth;
-        return json({ ok: true });
-      } }],
+      routes: [
+        {
+          path: "/api",
+          handler: (context) => {
+            apiAuth = context.auth;
+            return json({ ok: true });
+          },
+        },
+      ],
       fallback: createAskrPageHandler({ registry }),
     });
     await app.fetch(new Request("http://example.test/api"));
@@ -74,10 +79,13 @@ describe("Askr page fallback", () => {
     let preloaded = false;
     let rendered = false;
     const registry = createRouteRegistry(
-      () => route("/private", () => ((rendered = true), "private"), {
-        auth: requireUser(),
-        preload: () => { preloaded = true; },
-      }),
+      () =>
+        route("/private", () => ((rendered = true), "private"), {
+          auth: requireUser(),
+          preload: () => {
+            preloaded = true;
+          },
+        }),
       { auth: { resolve: () => anonymous, loginPath: "/login" } },
     );
     const app = createServerApp({ fallback: createAskrPageHandler({ registry }) });
@@ -126,21 +134,24 @@ describe("Askr page fallback", () => {
   });
 
   it("should emit escaped deterministic owned metadata", async () => {
-    const registry = createRouteRegistry(() => route("/", () => "fragment", {
-      meta: {
-        title: "<unsafe> & title",
-        description: 'a "quoted" description',
-        openGraph: { title: "OG title" },
-        links: [{ rel: "alternate", href: 'https://example.test/?q="unsafe"' }],
-        jsonLd: { value: "</script><script>alert(1)</script>" },
-        html: { lang: "en\r\nmalicious", dir: "ltr" },
-      },
-    }));
-    const response = await createServerApp({ fallback: createAskrPageHandler({ registry }) })
-      .fetch(new Request("http://example.test/"));
+    const registry = createRouteRegistry(() =>
+      route("/", () => "fragment", {
+        meta: {
+          title: "<unsafe> & title",
+          description: 'a "quoted" description',
+          openGraph: { title: "OG title" },
+          links: [{ rel: "alternate", href: 'https://example.test/?q="unsafe"' }],
+          jsonLd: { value: "</script><script>alert(1)</script>" },
+          html: { lang: "en\r\nmalicious", dir: "ltr" },
+        },
+      }),
+    );
+    const response = await createServerApp({ fallback: createAskrPageHandler({ registry }) }).fetch(
+      new Request("http://example.test/"),
+    );
     const head = response.headers.get("x-askr-head") ?? "";
-    expect(head).toContain("<title data-askr-head=\"\">&lt;unsafe&gt; &amp; title</title>");
-    expect(head).toContain("property=\"og:title\"");
+    expect(head).toContain('<title data-askr-head="">&lt;unsafe&gt; &amp; title</title>');
+    expect(head).toContain('property="og:title"');
     expect(head).toContain("\\u003c/script\\u003e");
     expect(head).not.toContain("<script>alert(1)</script>");
     expect(response.headers.get("x-askr-html-lang")).toBe("en malicious");

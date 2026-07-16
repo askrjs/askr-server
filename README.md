@@ -55,11 +55,11 @@ body at most once and caches the resulting object for the rest of the request.
 Sources are applied in this order; a later source replaces an earlier value
 when both contain the exact same key:
 
-| Priority | Source | Bound values |
-| --- | --- | --- |
-| 1 | JSON or form body | JSON values, form strings, and uploaded `File` objects |
-| 2 | Query string | Strings; repeated keys become `string[]` |
-| 3 | Route parameters | Decoded strings; these are authoritative |
+| Priority | Source            | Bound values                                           |
+| -------- | ----------------- | ------------------------------------------------------ |
+| 1        | JSON or form body | JSON values, form strings, and uploaded `File` objects |
+| 2        | Query string      | Strings; repeated keys become `string[]`               |
+| 3        | Route parameters  | Decoded strings; these are authoritative               |
 
 ```ts
 interface UpdateUserModel {
@@ -136,11 +136,9 @@ routes. Middleware and handlers receive the same context object through
 ```ts
 import { requirePermission } from "@askrjs/auth";
 
-router.get(
-  "/reports",
-  (ctx) => ctx.ok({ subject: ctx.auth.principal?.id }),
-  { auth: requirePermission("reports:read") },
-);
+router.get("/reports", (ctx) => ctx.ok({ subject: ctx.auth.principal?.id }), {
+  auth: requirePermission("reports:read"),
+});
 ```
 
 Session establishment and revocation belong to the selected auth runtime. The
@@ -203,12 +201,17 @@ const api = createApi<AppDependencies>({
   securitySchemes: { bearer: security.httpBearer({ bearerFormat: "JWT" }) },
 });
 
-const User = api.schema("User", schema.object({
-  id: schema.uuid({ description: "User ID" }),
-  name: schema.string(),
-}));
+const User = api.schema(
+  "User",
+  schema.object({
+    id: schema.uuid({ description: "User ID" }),
+    name: schema.string(),
+  }),
+);
 
-api.group("/api/users").tags("Users")
+api
+  .group("/api/users")
+  .tags("Users")
   .get("/{id}", async (ctx, { users }) => {
     const user = await users.find(ctx.params.id);
     return user ? ctx.ok(user) : ctx.notFound("User not found");
@@ -236,26 +239,27 @@ undocumented routes on the generic router. Executable operations declare each
 transport source independently:
 
 ```ts
-api.post("/api/users/{id}", {
-  input: {
-    params: schema.object({ id: schema.uuid() }),
-    query: schema.object({ notify: schema.optional(schema.string()) }),
-    headers: schema.object({ "if-match": schema.string() }, { additionalProperties: true }),
-    body: {
-      schema: schema.object({ name: schema.string({ minLength: 1 }) }),
-      mediaTypes: ["application/json"],
+api
+  .post("/api/users/{id}", {
+    input: {
+      params: schema.object({ id: schema.uuid() }),
+      query: schema.object({ notify: schema.optional(schema.string()) }),
+      headers: schema.object({ "if-match": schema.string() }, { additionalProperties: true }),
+      body: {
+        schema: schema.object({ name: schema.string({ minLength: 1 }) }),
+        mediaTypes: ["application/json"],
+      },
     },
-  },
-  documentation: {
-    params: { id: {} },
-    query: { notify: {} },
-    headers: { "if-match": { description: "Quoted user version" } },
-    body: { required: true },
-  },
-  handler: async (ctx, input, deps) => {
-    return ctx.ok(await deps.users.update(input.params.id, input.body));
-  },
-})
+    documentation: {
+      params: { id: {} },
+      query: { notify: {} },
+      headers: { "if-match": { description: "Quoted user version" } },
+      body: { required: true },
+    },
+    handler: async (ctx, input, deps) => {
+      return ctx.ok(await deps.users.update(input.params.id, input.body));
+    },
+  })
   .operationId("updateUser")
   .summary("Update a user")
   .ok(User);

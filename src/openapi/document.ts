@@ -24,7 +24,7 @@ function normalize(value: unknown): unknown {
   if (!value || typeof value !== "object") return value;
   return sortedRecord(
     Object.entries(value as Record<string, unknown>)
-      .filter(([key]) => key !== "x-askr-optional")
+      .filter(([key]) => key !== "x-askr-optional" && key !== "$schema")
       .map(([key, item]) => [key, normalize(item)] as const),
   );
 }
@@ -34,9 +34,9 @@ function parameter(value: ParameterDefinition): ParameterObject {
     name: value.name,
     in: value.in,
     ...(value.description ? { description: value.description } : {}),
-    ...((value.in === "path" || value.required) ? { required: true } : {}),
+    ...(value.in === "path" || value.required ? { required: true } : {}),
     ...(value.deprecated ? { deprecated: true } : {}),
-    schema: normalize(value.schema.openapi) as JsonSchema,
+    schema: normalize(value.schema.jsonSchema) as JsonSchema,
     ...(value.example !== undefined ? { example: value.example } : {}),
   };
 }
@@ -44,13 +44,17 @@ function parameter(value: ParameterDefinition): ParameterObject {
 function response(value: ResponseDefinition): ResponseObject {
   return {
     description: value.description,
-    ...(value.headers ? { headers: normalize(value.headers) as Readonly<Record<string, unknown>> } : {}),
+    ...(value.headers
+      ? { headers: normalize(value.headers) as Readonly<Record<string, unknown>> }
+      : {}),
     ...(value.schema && value.mediaType
       ? {
           content: {
             [value.mediaType]: {
-              schema: normalize(value.schema.openapi) as JsonSchema,
-              ...(value.examples ? { examples: normalize(value.examples) as Readonly<Record<string, unknown>> } : {}),
+              schema: normalize(value.schema.jsonSchema) as JsonSchema,
+              ...(value.examples
+                ? { examples: normalize(value.examples) as Readonly<Record<string, unknown>> }
+                : {}),
             },
           },
         }
@@ -64,10 +68,20 @@ function requestBody<Dependencies>(route: RouteState<Dependencies>): RequestBody
   return {
     ...(descriptions[0] ? { description: descriptions[0] } : {}),
     ...(route.bodies.some((body) => body.required) ? { required: true } : {}),
-    content: sortedRecord(route.bodies.map((body) => [body.mediaType, {
-      schema: normalize(body.schema.openapi) as JsonSchema,
-      ...(body.examples ? { examples: normalize(body.examples) as Readonly<Record<string, unknown>> } : {}),
-    }] as const)),
+    content: sortedRecord(
+      route.bodies.map(
+        (body) =>
+          [
+            body.mediaType,
+            {
+              schema: normalize(body.schema.jsonSchema) as JsonSchema,
+              ...(body.examples
+                ? { examples: normalize(body.examples) as Readonly<Record<string, unknown>> }
+                : {}),
+            },
+          ] as const,
+      ),
+    ),
   };
 }
 
@@ -108,7 +122,8 @@ export function createDocument<Dependencies>(
     throw new Error(`Invalid OpenAPI definition:\n- ${definitionErrors.join("\n- ")}`);
   }
   const schemas = new Map(userSchemas);
-  if (schemas.has("Problem")) throw new Error("Invalid OpenAPI definition:\n- component name Problem is reserved");
+  if (schemas.has("Problem"))
+    throw new Error("Invalid OpenAPI definition:\n- component name Problem is reserved");
   schemas.set("Problem", {
     type: "object",
     description: "A problem detail response defined by RFC 9457.",
@@ -131,9 +146,19 @@ export function createDocument<Dependencies>(
     methods.set(route.method.toLowerCase(), operation(route));
     paths.set(route.path, methods);
   }
-  const pathObject = sortedRecord([...paths].map(([path, methods]) => [path, Object.fromEntries(
-    [...methods].sort(([left], [right]) => methodOrder.indexOf(left) - methodOrder.indexOf(right)),
-  )] as const));
+  const pathObject = sortedRecord(
+    [...paths].map(
+      ([path, methods]) =>
+        [
+          path,
+          Object.fromEntries(
+            [...methods].sort(
+              ([left], [right]) => methodOrder.indexOf(left) - methodOrder.indexOf(right),
+            ),
+          ),
+        ] as const,
+    ),
+  );
   const securitySchemes = options.securitySchemes;
   const extensions = sortedRecord(
     Object.entries(options)

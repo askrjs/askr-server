@@ -42,15 +42,17 @@ describe("page actions", () => {
     const dependencies = { store: "store-1" };
     const handler = vi.fn((_context, input, deps) => ({ result: { input, store: deps.store } }));
     const actions = defineServerActions({ dependencies, csrf: false }, handleAction(save, handler));
-    const response = await actionApp(actions).fetch(new Request("http://example.test/items/42", {
-      method: "POST",
-      headers: {
-        accept: "application/vnd.askr.action+json;v=1",
-        "content-type": "application/json",
-        "x-askr-action": save.id,
-      },
-      body: JSON.stringify({ name: "Ada" }),
-    }));
+    const response = await actionApp(actions).fetch(
+      new Request("http://example.test/items/42", {
+        method: "POST",
+        headers: {
+          accept: "application/vnd.askr.action+json;v=1",
+          "content-type": "application/json",
+          "x-askr-action": save.id,
+        },
+        body: JSON.stringify({ name: "Ada" }),
+      }),
+    );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       version: 1,
@@ -67,28 +69,38 @@ describe("page actions", () => {
 
   it("should authorize a descriptor for the matched page only", async () => {
     const handler = vi.fn(() => ({ result: true }));
-    const actions = defineServerActions({ dependencies: { store: "store-1" }, csrf: false }, handleAction(save, handler));
-    const response = await actionApp(actions).fetch(new Request("http://example.test/other", {
-      method: "POST",
-      headers: {
-        accept: "application/vnd.askr.action+json;v=1",
-        "content-type": "application/json",
-        "x-askr-action": save.id,
-      },
-      body: JSON.stringify({ name: "Ada" }),
-    }));
+    const actions = defineServerActions(
+      { dependencies: { store: "store-1" }, csrf: false },
+      handleAction(save, handler),
+    );
+    const response = await actionApp(actions).fetch(
+      new Request("http://example.test/other", {
+        method: "POST",
+        headers: {
+          accept: "application/vnd.askr.action+json;v=1",
+          "content-type": "application/json",
+          "x-askr-action": save.id,
+        },
+        body: JSON.stringify({ name: "Ada" }),
+      }),
+    );
     expect(response.status).toBe(404);
     expect(handler).not.toHaveBeenCalled();
   });
 
   it("should rerender native validation failures with submitted values and field errors", async () => {
     const handler = vi.fn(() => ({ result: true }));
-    const actions = defineServerActions({ dependencies: { store: "store-1" }, csrf: false }, handleAction(save, handler));
-    const response = await actionApp(actions).fetch(new Request("http://example.test/items/42", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ _askr_action: save.id, name: "x" }),
-    }));
+    const actions = defineServerActions(
+      { dependencies: { store: "store-1" }, csrf: false },
+      handleAction(save, handler),
+    );
+    const response = await actionApp(actions).fetch(
+      new Request("http://example.test/items/42", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ _askr_action: save.id, name: "x" }),
+      }),
+    );
     expect(response.status).toBe(422);
     const html = await response.text();
     expect(html).toContain("item");
@@ -102,7 +114,10 @@ describe("page actions", () => {
 
   it("should protect page actions with session-bound CSRF by default", async () => {
     const handler = vi.fn(() => ({ result: true }));
-    const actions = defineServerActions({ dependencies: { store: "store-1" }, csrf: { secret: "test-secret" } }, handleAction(save, handler));
+    const actions = defineServerActions(
+      { dependencies: { store: "store-1" }, csrf: { secret: "test-secret" } },
+      handleAction(save, handler),
+    );
     const app = actionApp(actions);
     const page = await app.fetch(new Request("http://example.test/items/42"));
     const pageHtml = await page.text();
@@ -111,31 +126,42 @@ describe("page actions", () => {
     expect(pageHtml).toContain('"route":"loader-value"');
     expect(pageHtml).toContain('"framework":{"csrf":');
 
-    const rejected = await app.fetch(new Request("http://example.test/items/42", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ _askr_action: save.id, name: "Ada" }),
-    }));
+    const rejected = await app.fetch(
+      new Request("http://example.test/items/42", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ _askr_action: save.id, name: "Ada" }),
+      }),
+    );
     expect(rejected.status).toBe(403);
 
-    const accepted = await app.fetch(new Request("http://example.test/items/42", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ _askr_action: save.id, _csrf: token!, name: "Ada" }),
-    }));
+    const accepted = await app.fetch(
+      new Request("http://example.test/items/42", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ _askr_action: save.id, _csrf: token!, name: "Ada" }),
+      }),
+    );
     expect(accepted.status).toBe(303);
     expect(accepted.headers.get("location")).toBe("/items/42");
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
   it("should reject redirects outside the same-origin matched route set", async () => {
-    const actions = defineServerActions({ dependencies: { store: "store-1" }, csrf: false }, handleAction(save, () => ({ redirect: "https://attacker.test/" })));
-    const response = await actionApp(actions, { redirect: true }).fetch(new Request("http://example.test/items/42", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ _askr_action: save.id, name: "Ada" }),
-    }));
+    const actions = defineServerActions(
+      { dependencies: { store: "store-1" }, csrf: false },
+      handleAction(save, () => ({ redirect: "https://attacker.test/" })),
+    );
+    const response = await actionApp(actions, { redirect: true }).fetch(
+      new Request("http://example.test/items/42", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ _askr_action: save.id, name: "Ada" }),
+      }),
+    );
     expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({ detail: "Action returned an invalid route redirect." });
+    expect(await response.json()).toMatchObject({
+      detail: "Action returned an invalid route redirect.",
+    });
   });
 });

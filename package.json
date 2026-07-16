@@ -2,12 +2,25 @@
   "name": "@askrjs/server",
   "version": "0.0.1",
   "description": "Transport-neutral HTTP application core built on Web Request and Response",
-  "keywords": ["askr", "http", "openapi", "server"],
+  "keywords": [
+    "askr",
+    "http",
+    "openapi",
+    "server"
+  ],
   "homepage": "https://github.com/askrjs/askr-server#readme",
-  "bugs": { "url": "https://github.com/askrjs/askr-server/issues" },
-  "repository": { "type": "git", "url": "git+https://github.com/askrjs/askr-server.git" },
-  "author": { "name": "askrjs", "url": "https://github.com/askrjs" },
+  "bugs": {
+    "url": "https://github.com/askrjs/askr-server/issues"
+  },
   "license": "Apache-2.0",
+  "author": {
+    "name": "askrjs",
+    "url": "https://github.com/askrjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/askrjs/askr-server.git"
+  },
   "files": [
     "dist/**/*.js",
     "dist/**/*.d.ts"
@@ -36,13 +49,23 @@
       "types": "./dist/askr.d.ts",
       "import": "./dist/askr.js"
     },
+    "./auth": {
+      "types": "./dist/auth.d.ts",
+      "import": "./dist/auth.js"
+    },
     "./openapi": {
       "types": "./dist/openapi.d.ts",
       "import": "./dist/openapi.js"
     },
+    "./mcp": {
+      "types": "./dist/mcp.d.ts",
+      "import": "./dist/mcp.js"
+    },
     "./package.json": "./package.json"
   },
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "vp pack",
     "bench": "npm run bench:dispatch && npm run bench:binding && npm run bench:tier1 && npm run bench:tier2 && npm run bench:tier3 && npm run bench:tier4",
@@ -69,6 +92,13 @@
     "@askrjs/auth": ">=0.0.1 <0.1.0",
     "@askrjs/schema": ">=0.0.1 <0.1.0"
   },
+  "devDependencies": {
+    "@askrjs/askr": "file:../askr",
+    "publint": "^0.3.12",
+    "typescript": "^6.0.0",
+    "vite-plus": "^0.2.4",
+    "vitest": "^4.0.0"
+  },
   "peerDependencies": {
     "@askrjs/askr": ">=0.0.53 <0.1.0"
   },
@@ -76,13 +106,6 @@
     "@askrjs/askr": {
       "optional": true
     }
-  },
-  "devDependencies": {
-    "@askrjs/askr": "file:../askr",
-    "publint": "^0.3.12",
-    "typescript": "^6.0.0",
-    "vite-plus": "^0.2.4",
-    "vitest": "^4.0.0"
   },
   "engines": {
     "node": ">=18"

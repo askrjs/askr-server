@@ -21,7 +21,9 @@ describe("model binding body method and media-type edges", () => {
   it.each(["POST", "PUT", "PATCH", "DELETE", "OPTIONS", "CUSTOM"])(
     "parses JSON on the body-capable %s method",
     async (method) => {
-      const response = await echoApp(method).fetch(jsonRequest('{"method":"body"}', "application/json", method));
+      const response = await echoApp(method).fetch(
+        jsonRequest('{"method":"body"}', "application/json", method),
+      );
       await expect(response.json()).resolves.toEqual({ method: "body", id: "1" });
     },
   );
@@ -38,17 +40,21 @@ describe("model binding body method and media-type edges", () => {
   });
 
   it("preserves every JSON value type below the object root", async () => {
-    const response = await echoApp().fetch(jsonRequest(JSON.stringify({
-      string: "value",
-      empty: "",
-      zero: 0,
-      negative: -1.5,
-      true: true,
-      false: false,
-      null: null,
-      array: [1, null, false],
-      object: { nested: "yes" },
-    })));
+    const response = await echoApp().fetch(
+      jsonRequest(
+        JSON.stringify({
+          string: "value",
+          empty: "",
+          zero: 0,
+          negative: -1.5,
+          true: true,
+          false: false,
+          null: null,
+          array: [1, null, false],
+          object: { nested: "yes" },
+        }),
+      ),
+    );
     await expect(response.json()).resolves.toEqual({
       string: "value",
       empty: "",
@@ -92,11 +98,14 @@ describe("model binding body method and media-type edges", () => {
     });
     request.headers.delete("content-type");
     const app = createServerApp({
-      routes: [{
-        path: "/items/{id}",
-        method: "POST",
-        handler: async (ctx) => ctx.json({ bound: await ctx.bind(), raw: await ctx.request.text() }),
-      }],
+      routes: [
+        {
+          path: "/items/{id}",
+          method: "POST",
+          handler: async (ctx) =>
+            ctx.json({ bound: await ctx.bind(), raw: await ctx.request.text() }),
+        },
+      ],
     });
     await expect((await app.fetch(request)).json()).resolves.toEqual({
       bound: { q: "yes", id: "1" },
@@ -104,49 +113,65 @@ describe("model binding body method and media-type edges", () => {
     });
   });
 
-  it.each(["text/plain", "application/octet-stream", "application/json, text/plain", "; charset=utf-8"])(
-    "leaves the unsupported or ambiguous media type %s unread",
-    async (contentType) => {
-      const request = new Request("http://example.test/items/1?q=yes", {
-        method: "POST",
-        headers: { "content-type": contentType },
-        body: "untouched",
-      });
-      const app = createServerApp({
-        routes: [{
+  it.each([
+    "text/plain",
+    "application/octet-stream",
+    "application/json, text/plain",
+    "; charset=utf-8",
+  ])("leaves the unsupported or ambiguous media type %s unread", async (contentType) => {
+    const request = new Request("http://example.test/items/1?q=yes", {
+      method: "POST",
+      headers: { "content-type": contentType },
+      body: "untouched",
+    });
+    const app = createServerApp({
+      routes: [
+        {
           path: "/items/{id}",
           method: "POST",
-          handler: async (ctx) => ctx.json({ bound: await ctx.bind(), raw: await ctx.request.text() }),
-        }],
-      });
-      await expect((await app.fetch(request)).json()).resolves.toEqual({
-        bound: { q: "yes", id: "1" },
-        raw: "untouched",
-      });
-    },
-  );
+          handler: async (ctx) =>
+            ctx.json({ bound: await ctx.bind(), raw: await ctx.request.text() }),
+        },
+      ],
+    });
+    await expect((await app.fetch(request)).json()).resolves.toEqual({
+      bound: { q: "yes", id: "1" },
+      raw: "untouched",
+    });
+  });
 
   it("still ignores an unsupported body after another consumer has read it", async () => {
     const app = createServerApp({
-      middleware: [async (ctx, next) => { await ctx.request.text(); return next(); }],
-      routes: [{ path: "/items/{id}", method: "POST", handler: async (ctx) => ctx.json(await ctx.bind()) }],
+      middleware: [
+        async (ctx, next) => {
+          await ctx.request.text();
+          return next();
+        },
+      ],
+      routes: [
+        { path: "/items/{id}", method: "POST", handler: async (ctx) => ctx.json(await ctx.bind()) },
+      ],
     });
-    const response = await app.fetch(new Request("http://example.test/items/1?q=yes", {
-      method: "POST",
-      headers: { "content-type": "text/plain" },
-      body: "consumed but unsupported",
-    }));
+    const response = await app.fetch(
+      new Request("http://example.test/items/1?q=yes", {
+        method: "POST",
+        headers: { "content-type": "text/plain" },
+        body: "consumed but unsupported",
+      }),
+    );
     await expect(response.json()).resolves.toEqual({ q: "yes", id: "1" });
   });
 });
 
 describe("model binding URL-encoded form edges", () => {
   it("decodes plus signs, percent encoding, Unicode, bare fields, and empty names", async () => {
-    const response = await echoApp().fetch(new Request("http://example.test/items/1", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded; charset=utf-8" },
-      body: "message=hello+world&unicode=%E2%9C%93&bare&empty=&=empty-name",
-    }));
+    const response = await echoApp().fetch(
+      new Request("http://example.test/items/1", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded; charset=utf-8" },
+        body: "message=hello+world&unicode=%E2%9C%93&bare&empty=&=empty-name",
+      }),
+    );
     await expect(response.json()).resolves.toEqual({
       message: "hello world",
       unicode: "✓",
@@ -160,22 +185,26 @@ describe("model binding URL-encoded form edges", () => {
   it("preserves many repeated fields without changing order", async () => {
     const values = Array.from({ length: 64 }, (_, index) => `value-${index}`);
     const body = values.map((value) => `tag=${value}`).join("&");
-    const response = await echoApp().fetch(new Request("http://example.test/items/1", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body,
-    }));
-    const result = await response.json() as { tag: string[] };
+    const response = await echoApp().fetch(
+      new Request("http://example.test/items/1", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body,
+      }),
+    );
+    const result = (await response.json()) as { tag: string[] };
     expect(result.tag).toEqual(values);
   });
 
   it("safely binds prototype-sensitive form field names", async () => {
-    const response = await echoApp().fetch(new Request("http://example.test/items/1", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: "__proto__=safe&constructor=also-safe&toString=text",
-    }));
-    const result = await response.json() as Record<string, unknown>;
+    const response = await echoApp().fetch(
+      new Request("http://example.test/items/1", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "__proto__=safe&constructor=also-safe&toString=text",
+      }),
+    );
+    const result = (await response.json()) as Record<string, unknown>;
     expect(Object.hasOwn(result, "__proto__")).toBe(true);
     expect(result["__proto__"]).toBe("safe");
     expect(result.constructor).toBe("also-safe");
@@ -183,21 +212,25 @@ describe("model binding URL-encoded form edges", () => {
   });
 
   it("treats an empty URL-encoded body as contributing no values", async () => {
-    const response = await echoApp().fetch(new Request("http://example.test/items/1", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: "",
-    }));
+    const response = await echoApp().fetch(
+      new Request("http://example.test/items/1", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "",
+      }),
+    );
     await expect(response.json()).resolves.toEqual({ id: "1" });
   });
 });
 
 describe("model binding multipart edges", () => {
   it("binds an empty multipart form", async () => {
-    const response = await echoApp().fetch(new Request("http://example.test/items/1", {
-      method: "POST",
-      body: new FormData(),
-    }));
+    const response = await echoApp().fetch(
+      new Request("http://example.test/items/1", {
+        method: "POST",
+        body: new FormData(),
+      }),
+    );
     await expect(response.json()).resolves.toEqual({ id: "1" });
   });
 
@@ -207,24 +240,32 @@ describe("model binding multipart edges", () => {
     form.append("mixed", new Blob(["file"], { type: "text/plain" }), "résumé.txt");
     form.append("mixed", "after");
     const app = createServerApp({
-      routes: [{
-        path: "/items/{id}",
-        method: "POST",
-        handler: async (ctx) => {
-          const mixed = (await ctx.bind<Record<string, unknown>>()).mixed as FormDataEntryValue[];
-          const file = mixed[1] as File;
-          return ctx.json({
-            first: mixed[0],
-            file: { name: file.name, type: file.type, size: file.size },
-            last: mixed[2],
-          });
+      routes: [
+        {
+          path: "/items/{id}",
+          method: "POST",
+          handler: async (ctx) => {
+            const mixed = (await ctx.bind<Record<string, unknown>>()).mixed as FormDataEntryValue[];
+            const file = mixed[1] as File;
+            return ctx.json({
+              first: mixed[0],
+              file: { name: file.name, type: file.type, size: file.size },
+              last: mixed[2],
+            });
+          },
         },
-      }],
+      ],
     });
-    await expect((await app.fetch(new Request("http://example.test/items/1", {
-      method: "POST",
-      body: form,
-    }))).json()).resolves.toEqual({
+    await expect(
+      (
+        await app.fetch(
+          new Request("http://example.test/items/1", {
+            method: "POST",
+            body: form,
+          }),
+        )
+      ).json(),
+    ).resolves.toEqual({
       first: "before",
       file: { name: "résumé.txt", type: "text/plain", size: 4 },
       last: "after",
@@ -235,11 +276,13 @@ describe("model binding multipart edges", () => {
     const form = new FormData();
     form.append("__proto__", "safe");
     form.append("constructor", "also-safe");
-    const response = await echoApp().fetch(new Request("http://example.test/items/1", {
-      method: "POST",
-      body: form,
-    }));
-    const result = await response.json() as Record<string, unknown>;
+    const response = await echoApp().fetch(
+      new Request("http://example.test/items/1", {
+        method: "POST",
+        body: form,
+      }),
+    );
+    const result = (await response.json()) as Record<string, unknown>;
     expect(Object.hasOwn(result, "__proto__")).toBe(true);
     expect(result["__proto__"]).toBe("safe");
     expect(result.constructor).toBe("also-safe");
@@ -249,10 +292,12 @@ describe("model binding multipart edges", () => {
     const form = new FormData();
     form.append("value", new Blob(["file"]), "value.txt");
     form.append("query", "form");
-    const response = await echoApp("POST").fetch(new Request(
-      "http://example.test/items/route?value=query&query=query",
-      { method: "POST", body: form },
-    ));
+    const response = await echoApp("POST").fetch(
+      new Request("http://example.test/items/route?value=query&query=query", {
+        method: "POST",
+        body: form,
+      }),
+    );
     await expect(response.json()).resolves.toEqual({ value: "query", query: "query", id: "route" });
   });
 });
@@ -272,7 +317,9 @@ describe("model binding read and error edges", () => {
     } as RequestInit & { duplex: "half" });
     const response = await echoApp().fetch(request);
     expect(response.status).toBe(400);
-    expect((await response.json() as { detail: string }).detail).toBe("Request body could not be read.");
+    expect(((await response.json()) as { detail: string }).detail).toBe(
+      "Request body could not be read.",
+    );
   });
 
   it.each([
@@ -280,31 +327,49 @@ describe("model binding read and error edges", () => {
     ["application/x-www-form-urlencoded", "value=yes"],
   ])("rejects an already-consumed %s body", async (contentType, body) => {
     const app = createServerApp({
-      middleware: [async (ctx, next) => { await ctx.request.text(); return next(); }],
-      routes: [{ path: "/items/{id}", method: "POST", handler: async (ctx) => ctx.json(await ctx.bind()) }],
+      middleware: [
+        async (ctx, next) => {
+          await ctx.request.text();
+          return next();
+        },
+      ],
+      routes: [
+        { path: "/items/{id}", method: "POST", handler: async (ctx) => ctx.json(await ctx.bind()) },
+      ],
     });
-    const response = await app.fetch(new Request("http://example.test/items/1", {
-      method: "POST",
-      headers: { "content-type": contentType },
-      body,
-    }));
+    const response = await app.fetch(
+      new Request("http://example.test/items/1", {
+        method: "POST",
+        headers: { "content-type": contentType },
+        body,
+      }),
+    );
     expect(response.status).toBe(400);
-    expect((await response.json() as { detail: string }).detail).toMatch(/already been consumed/);
+    expect(((await response.json()) as { detail: string }).detail).toMatch(/already been consumed/);
   });
 
   it("rejects an already-consumed multipart body", async () => {
     const form = new FormData();
     form.append("value", "yes");
     const app = createServerApp({
-      middleware: [async (ctx, next) => { await ctx.request.formData(); return next(); }],
-      routes: [{ path: "/items/{id}", method: "POST", handler: async (ctx) => ctx.json(await ctx.bind()) }],
+      middleware: [
+        async (ctx, next) => {
+          await ctx.request.formData();
+          return next();
+        },
+      ],
+      routes: [
+        { path: "/items/{id}", method: "POST", handler: async (ctx) => ctx.json(await ctx.bind()) },
+      ],
     });
-    const response = await app.fetch(new Request("http://example.test/items/1", {
-      method: "POST",
-      body: form,
-    }));
+    const response = await app.fetch(
+      new Request("http://example.test/items/1", {
+        method: "POST",
+        body: form,
+      }),
+    );
     expect(response.status).toBe(400);
-    expect((await response.json() as { detail: string }).detail).toMatch(/already been consumed/);
+    expect(((await response.json()) as { detail: string }).detail).toMatch(/already been consumed/);
   });
 
   it("exposes a stable BindingError name, status, message, and cause", async () => {
@@ -327,8 +392,13 @@ describe("model binding read and error edges", () => {
   it("keeps binding errors out of onError", async () => {
     let onErrorCalls = 0;
     const app = createServerApp({
-      routes: [{ path: "/items/{id}", method: "POST", handler: async (ctx) => ctx.json(await ctx.bind()) }],
-      onError: () => { onErrorCalls += 1; return text("unexpected", { status: 500 }); },
+      routes: [
+        { path: "/items/{id}", method: "POST", handler: async (ctx) => ctx.json(await ctx.bind()) },
+      ],
+      onError: () => {
+        onErrorCalls += 1;
+        return text("unexpected", { status: 500 });
+      },
     });
     const response = await app.fetch(jsonRequest("{"));
     expect(response.status).toBe(400);

@@ -28,7 +28,10 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
         try {
           const match = () => matcher.match(context.url.pathname, request.method);
           const found = options.telemetry
-            ? options.telemetry.routeMatch({ requestId, traceId, route: context.url.pathname }, match)
+            ? options.telemetry.routeMatch(
+                { requestId, traceId, route: context.url.pathname },
+                match,
+              )
             : match();
           context.params = found.match?.params ?? {};
           if (options.auth) {
@@ -56,9 +59,8 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
           return response;
         }
       };
-      const instrumented = () => options.telemetry
-        ? options.telemetry.request({ requestId }, execute)
-        : execute();
+      const instrumented = () =>
+        options.telemetry ? options.telemetry.request({ requestId }, execute) : execute();
       if (options.telemetry?.extract && options.telemetry.withContext) {
         const extracted = options.telemetry.extract(request.headers, {
           keys: (headers) => [...headers.keys()],

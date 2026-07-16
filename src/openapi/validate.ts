@@ -15,11 +15,13 @@ function visitSchema(value: unknown, visit: (ref: string) => void): void {
   for (const item of Object.values(record)) visitSchema(item, visit);
 }
 
-function routeSchemas<Dependencies>(route: RouteState<Dependencies>): Array<Pick<Schema, "openapi">> {
+function routeSchemas<Dependencies>(
+  route: RouteState<Dependencies>,
+): Array<Pick<Schema, "jsonSchema">> {
   return [
     ...route.parameters.map((parameter) => parameter.schema),
     ...route.bodies.map((body) => body.schema),
-    ...route.responses.flatMap((response) => response.schema ? [response.schema] : []),
+    ...route.responses.flatMap((response) => (response.schema ? [response.schema] : [])),
   ];
 }
 
@@ -29,7 +31,7 @@ function validateReferences<Dependencies>(
 ): string[] {
   const errors: string[] = [];
   const values: unknown[] = [...schemas.values()];
-  for (const route of routes) values.push(...routeSchemas(route).map((value) => value.openapi));
+  for (const route of routes) values.push(...routeSchemas(route).map((value) => value.jsonSchema));
   for (const value of values) {
     visitSchema(value, (ref) => {
       const prefix = "#/components/schemas/";
@@ -67,8 +69,10 @@ export function validateApi<Dependencies>(
     errors.push(...route.errors.map((error) => `${label}: ${error}`));
     if (route.path.includes("*")) errors.push(`${label}: wildcard paths are not supported`);
     if (!route.operationId) errors.push(`${label}: operationId is required`);
-    else if (!operationId.test(route.operationId)) errors.push(`${label}: invalid operationId ${route.operationId}`);
-    else if (operationIds.has(route.operationId)) errors.push(`${label}: duplicate operationId ${route.operationId}`);
+    else if (!operationId.test(route.operationId))
+      errors.push(`${label}: invalid operationId ${route.operationId}`);
+    else if (operationIds.has(route.operationId))
+      errors.push(`${label}: duplicate operationId ${route.operationId}`);
     else operationIds.add(route.operationId);
     if (!route.summary?.trim()) errors.push(`${label}: summary is required`);
     if (route.responses.length === 0) errors.push(`${label}: at least one response is required`);
@@ -77,18 +81,23 @@ export function validateApi<Dependencies>(
     routeKeys.add(routeKey);
 
     const expected = pathParameters(route.path).sort();
-    const actual = route.parameters.filter((value) => value.in === "path").map((value) => value.name).sort();
+    const actual = route.parameters
+      .filter((value) => value.in === "path")
+      .map((value) => value.name)
+      .sort();
     if (JSON.stringify(expected) !== JSON.stringify(actual)) {
       errors.push(`${label}: path parameters must exactly match {${expected.join(", ")}}`);
     }
     const parameterKeys = new Set<string>();
     for (const parameter of route.parameters) {
       const key = `${parameter.in}:${parameter.name.toLowerCase()}`;
-      if (parameterKeys.has(key)) errors.push(`${label}: duplicate parameter ${parameter.in} ${parameter.name}`);
+      if (parameterKeys.has(key))
+        errors.push(`${label}: duplicate parameter ${parameter.in} ${parameter.name}`);
       parameterKeys.add(key);
     }
     for (const response of route.responses) {
-      if (!statusCode.test(response.status)) errors.push(`${label}: invalid response status ${response.status}`);
+      if (!statusCode.test(response.status))
+        errors.push(`${label}: invalid response status ${response.status}`);
     }
     for (const requirement of route.access?.security ?? []) {
       for (const name of Object.keys(requirement)) {
@@ -97,5 +106,6 @@ export function validateApi<Dependencies>(
     }
   }
   errors.push(...validateReferences(routes, schemas));
-  if (errors.length) throw new Error(`Invalid OpenAPI definition:\n- ${[...new Set(errors)].join("\n- ")}`);
+  if (errors.length)
+    throw new Error(`Invalid OpenAPI definition:\n- ${[...new Set(errors)].join("\n- ")}`);
 }

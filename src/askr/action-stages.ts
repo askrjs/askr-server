@@ -16,12 +16,14 @@ export type Submission = {
   readonly values: Record<string, unknown>;
 };
 
-export type CsrfConfiguration = false | {
-  readonly secret: string;
-  readonly sessionId: (context: ServerContext) => string | undefined;
-  readonly header: string;
-  readonly formField: string;
-};
+export type CsrfConfiguration =
+  | false
+  | {
+      readonly secret: string;
+      readonly sessionId: (context: ServerContext) => string | undefined;
+      readonly header: string;
+      readonly formField: string;
+    };
 
 export type RegisteredAction<Dependencies> = {
   readonly descriptor: ActionDescriptor;
@@ -34,9 +36,9 @@ function errorsByField(issues: readonly Issue[]): Readonly<Record<string, readon
     const field = issue.path.join(".") || "_form";
     (output[field] ??= []).push(issue.message);
   }
-  return Object.freeze(Object.fromEntries(
-    Object.entries(output).map(([key, value]) => [key, Object.freeze(value)]),
-  ));
+  return Object.freeze(
+    Object.fromEntries(Object.entries(output).map(([key, value]) => [key, Object.freeze(value)])),
+  );
 }
 
 export function authorizedAction<Dependencies>(

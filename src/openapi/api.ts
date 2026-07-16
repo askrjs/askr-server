@@ -11,7 +11,8 @@ import { createRouteBuilder } from "./route-builder";
 import { readOperationInput } from "./request-input";
 import { validateOperationResponse } from "./response-validation";
 import type {
-  ApiHandler, ApiOperation,
+  ApiHandler,
+  ApiOperation,
   ApiOptions,
   GroupState,
   InputDocumentation,
@@ -22,14 +23,12 @@ import type {
 } from "./types";
 
 const methods = ["get", "post", "put", "patch", "delete", "options", "head", "trace"] as const;
-
 function joinPath(prefix: string, path: string): string {
   const left = prefix === "/" ? "" : prefix.replace(/\/$/, "");
   const right = path === "/" ? "" : path.replace(/^\//, "");
   const joined = `${left}/${right}`;
   return joined.startsWith("/") ? joined : `/${joined}`;
 }
-
 function cloneGroup(state: GroupState, prefix: string): GroupState {
   return {
     prefix: joinPath(state.prefix, prefix),
@@ -39,7 +38,6 @@ function cloneGroup(state: GroupState, prefix: string): GroupState {
     access: state.access,
   };
 }
-
 function addGroupParameter(
   state: GroupState,
   location: ParameterLocation,
@@ -55,11 +53,9 @@ function addGroupParameter(
     ...(location === "path" ? { required: true } : {}),
   });
 }
-
-function projectedSchema(openapi: unknown): Pick<Schema, "openapi"> {
-  return { openapi: openapi as JsonSchema };
+function projectedSchema(jsonSchema: unknown): Pick<Schema, "jsonSchema"> {
+  return { jsonSchema: jsonSchema as JsonSchema };
 }
-
 function operationParameters(
   input: ApiOperation<unknown>["input"],
   documentation: InputDocumentation | undefined,
@@ -75,29 +71,35 @@ function operationParameters(
     const declaration = input?.[source];
     const metadata = documentation?.[source];
     if (!declaration) {
-      if (metadata && Object.keys(metadata).length) errors.push(`documentation for undeclared ${source}`);
+      if (metadata && Object.keys(metadata).length)
+        errors.push(`documentation for undeclared ${source}`);
       continue;
     }
-    const properties = declaration.openapi.properties;
+    const properties = declaration.jsonSchema.properties;
     if (!properties || typeof properties !== "object" || Array.isArray(properties)) {
       errors.push(`${source} input schema must expose object properties`);
       continue;
     }
-    const required = new Set(Array.isArray(declaration.openapi.required)
-      ? declaration.openapi.required.filter((value): value is string => typeof value === "string")
-      : []);
-    for (const [name, openapi] of Object.entries(properties as Record<string, unknown>)) {
+    const required = new Set(
+      Array.isArray(declaration.jsonSchema.required)
+        ? declaration.jsonSchema.required.filter(
+            (value): value is string => typeof value === "string",
+          )
+        : [],
+    );
+    for (const [name, jsonSchema] of Object.entries(properties as Record<string, unknown>)) {
       const docs = metadata?.[name];
       output.push({
         name,
         in: location,
-        schema: projectedSchema(openapi),
+        schema: projectedSchema(jsonSchema),
         ...docs,
-        ...((location === "path" || required.has(name)) ? { required: true } : {}),
+        ...(location === "path" || required.has(name) ? { required: true } : {}),
       });
     }
     for (const name of Object.keys(metadata ?? {})) {
-      if (!Object.hasOwn(properties, name)) errors.push(`documentation for undeclared ${source}.${name}`);
+      if (!Object.hasOwn(properties, name))
+        errors.push(`documentation for undeclared ${source}.${name}`);
     }
   }
   return output;
@@ -112,10 +114,12 @@ function operationBodies(
     if (operation.documentation?.body) errors.push("documentation for undeclared body");
     return [];
   }
-  const mediaTypes = [...new Set(body.mediaTypes.map((value) => value.trim().toLowerCase()))]
-    .filter(Boolean);
+  const mediaTypes = [
+    ...new Set(body.mediaTypes.map((value) => value.trim().toLowerCase())),
+  ].filter(Boolean);
   if (mediaTypes.length === 0) errors.push("body input must declare at least one media type");
-  if (mediaTypes.length !== body.mediaTypes.length) errors.push("body input media types must be unique and non-empty");
+  if (mediaTypes.length !== body.mediaTypes.length)
+    errors.push("body input media types must be unique and non-empty");
   return mediaTypes.map((mediaType) => ({
     mediaType,
     schema: body.schema,
@@ -129,38 +133,45 @@ function createGroup<Dependencies, Prefix extends string>(
   validateResponses: boolean | undefined,
 ): ApiGroup<Dependencies, Prefix> {
   let group: ApiGroup<Dependencies, Prefix>;
-  const parameter = (location: ParameterLocation, name: string, value: Schema, options?: ParameterOptions) => {
+  const parameter = (
+    location: ParameterLocation,
+    name: string,
+    value: Schema,
+    options?: ParameterOptions,
+  ) => {
     addGroupParameter(state, location, name, value, options);
     return group;
   };
   const route = <const Path extends string>(
     method: string,
     path: Path,
-    handler: ApiHandler<Dependencies, import("../contracts").PathParams<`${Prefix}${Path}`>> | ApiOperation<Dependencies>,
+    handler:
+      | ApiHandler<Dependencies, import("../contracts").PathParams<`${Prefix}${Path}`>>
+      | ApiOperation<Dependencies>,
   ): RouteBuilder<Dependencies> => {
     let routeState: RouteState<Dependencies>;
-    const executableOperation = typeof handler === "function"
-      ? undefined
-      : handler as ApiOperation<Dependencies>;
-    const runtimeHandler: ApiHandler<Dependencies> = typeof handler === "function"
-      ? handler as ApiHandler<Dependencies>
-      : async (context, dependencies) => {
-          const result = await readOperationInput(context, handler.input ?? {});
-          if (!result.success) {
-            return result.status === 400
-              ? context.badRequest(result.detail)
-              : context.problem(422, "Request input did not match the declared schema.", {
-                  extensions: { issues: result.issues },
-                });
-          }
-          const response = await handler.handler(context, result.data, dependencies!);
-          return validateOperationResponse(
-            validateResponses,
-            routeState.responses,
-            response,
-            context,
-          );
-        };
+    const executableOperation =
+      typeof handler === "function" ? undefined : (handler as ApiOperation<Dependencies>);
+    const runtimeHandler: ApiHandler<Dependencies> =
+      typeof handler === "function"
+        ? (handler as ApiHandler<Dependencies>)
+        : async (context, dependencies) => {
+            const result = await readOperationInput(context, handler.input ?? {});
+            if (!result.success) {
+              return result.status === 400
+                ? context.badRequest(result.detail)
+                : context.problem(422, "Request input did not match the declared schema.", {
+                    extensions: { issues: result.issues },
+                  });
+            }
+            const response = await handler.handler(context, result.data, dependencies!);
+            return validateOperationResponse(
+              validateResponses,
+              routeState.responses,
+              response,
+              context,
+            );
+          };
     const definitionErrors: string[] = [];
     const canonicalParameters = executableOperation
       ? operationParameters(
@@ -192,12 +203,24 @@ function createGroup<Dependencies, Prefix extends string>(
     return createRouteBuilder(routeState);
   };
   const routeMethods = Object.fromEntries(
-    methods.map((method) => [method, (path: string, handler: ApiHandler<Dependencies>) => route(method, path, handler)]),
+    methods.map((method) => [
+      method,
+      (path: string, handler: ApiHandler<Dependencies>) => route(method, path, handler),
+    ]),
   ) as Pick<ApiGroup<Dependencies, Prefix>, (typeof methods)[number]>;
   group = {
-    tags: (...values) => { state.tags.push(...values); return group; },
-    use: (...middleware) => { state.middleware.push(...middleware); return group; },
-    access: (requirement, security) => { state.access = { requirement, security }; return group; },
+    tags: (...values) => {
+      state.tags.push(...values);
+      return group;
+    },
+    use: (...middleware) => {
+      state.middleware.push(...middleware);
+      return group;
+    },
+    access: (requirement, security) => {
+      state.access = { requirement, security };
+      return group;
+    },
     pathParam: (name, value, options) => parameter("path", name, value, options),
     queryParam: (name, value, options) => parameter("query", name, value, options),
     headerParam: (name, value, options) => parameter("header", name, value, options),
@@ -219,18 +242,22 @@ export function createApi<Dependencies = undefined>(
   const routes: RouteState<Dependencies>[] = [];
   const schemas = new Map<string, JsonSchema>();
   const errors: string[] = [];
-  const root = createGroup<Dependencies, "">({
-    prefix: "",
-    tags: [],
-    parameters: [],
-    middleware: [],
-  }, routes, options.validateResponses);
+  const root = createGroup<Dependencies, "">(
+    {
+      prefix: "",
+      tags: [],
+      parameters: [],
+      middleware: [],
+    },
+    routes,
+    options.validateResponses,
+  );
   return Object.assign(root, {
     schema<const Value extends Schema>(name: string, value: Value): Value {
       if (schemas.has(name)) errors.push(`duplicate schema component ${name}`);
-      schemas.set(name, value.openapi);
+      schemas.set(name, value.jsonSchema);
       return {
-        openapi: { $ref: `#/components/schemas/${name}` },
+        jsonSchema: { $ref: `#/components/schemas/${name}` },
         safeParse: (input: unknown) => value.safeParse(input),
         ...("kind" in value ? { kind: value.kind } : {}),
       } as unknown as Value;
@@ -239,24 +266,29 @@ export function createApi<Dependencies = undefined>(
       createDocument(routes, schemas, options, errors);
       const router = createRouter();
       for (const route of routes) {
-        router.route(route.method, route.path, async (context) => {
-          const requestId = typeof context.state.requestId === "string"
-            ? context.state.requestId
-            : undefined;
-          const traceId = typeof context.state.traceId === "string"
-            ? context.state.traceId
-            : context.telemetry?.traceId();
-          const operation = route.operationId ?? `${route.method} ${route.path}`;
-          const fields = { requestId, traceId, route: route.path, operation };
-          const execute = () => route.handler(context, dependencies!);
-          const response = await (context.telemetry
-            ? context.telemetry.apiOperation(fields, execute)
-            : execute());
-          return response;
-        }, {
-          auth: route.access?.requirement,
-          middleware: route.middleware,
-        });
+        router.route(
+          route.method,
+          route.path,
+          async (context) => {
+            const requestId =
+              typeof context.state.requestId === "string" ? context.state.requestId : undefined;
+            const traceId =
+              typeof context.state.traceId === "string"
+                ? context.state.traceId
+                : context.telemetry?.traceId();
+            const operation = route.operationId ?? `${route.method} ${route.path}`;
+            const fields = { requestId, traceId, route: route.path, operation };
+            const execute = () => route.handler(context, dependencies!);
+            const response = await (context.telemetry
+              ? context.telemetry.apiOperation(fields, execute)
+              : execute());
+            return response;
+          },
+          {
+            auth: route.access?.requirement,
+            middleware: route.middleware,
+          },
+        );
       }
       return router;
     },

@@ -113,7 +113,7 @@ export interface ApiOperation<
 export interface ParameterDefinition {
   name: string;
   in: "path" | "query" | "header" | "cookie";
-  schema: Pick<Schema, "openapi">;
+  schema: Pick<Schema, "jsonSchema">;
   description?: string;
   required?: boolean;
   deprecated?: boolean;

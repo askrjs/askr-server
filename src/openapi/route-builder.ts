@@ -9,7 +9,7 @@ import type {
 import type { RouteState, Schema } from "./types";
 
 const problem = (): Schema => ({
-  openapi: { $ref: "#/components/schemas/Problem" },
+  jsonSchema: { $ref: "#/components/schemas/Problem" },
   safeParse: (value) => ({ success: true, data: value }),
 });
 
@@ -112,7 +112,12 @@ export function createRouteBuilder<Dependencies>(
   state: RouteState<Dependencies>,
 ): RouteBuilder<Dependencies> {
   let builder: RouteBuilder<Dependencies>;
-  const parameter = (location: ParameterLocation, name: string, value: Schema, options?: ParameterOptions) => {
+  const parameter = (
+    location: ParameterLocation,
+    name: string,
+    value: Schema,
+    options?: ParameterOptions,
+  ) => {
     addParameter(state, location, name, value, options);
     return builder;
   };
@@ -129,17 +134,38 @@ export function createRouteBuilder<Dependencies>(
     return builder;
   };
   builder = {
-    operationId: (value) => { state.operationId = value; return builder; },
-    summary: (value) => { state.summary = value; return builder; },
-    description: (value) => { state.description = value; return builder; },
-    tags: (...values) => { state.tags.push(...values); return builder; },
-    deprecated: (value = true) => { state.deprecated = value; return builder; },
+    operationId: (value) => {
+      state.operationId = value;
+      return builder;
+    },
+    summary: (value) => {
+      state.summary = value;
+      return builder;
+    },
+    description: (value) => {
+      state.description = value;
+      return builder;
+    },
+    tags: (...values) => {
+      state.tags.push(...values);
+      return builder;
+    },
+    deprecated: (value = true) => {
+      state.deprecated = value;
+      return builder;
+    },
     externalDocs: (url, description) => {
       state.externalDocs = { url, ...(description ? { description } : {}) };
       return builder;
     },
-    use: (...values: Middleware[]) => { state.middleware.push(...values); return builder; },
-    access: (requirement, security) => { state.access = { requirement, security }; return builder; },
+    use: (...values: Middleware[]) => {
+      state.middleware.push(...values);
+      return builder;
+    },
+    access: (requirement, security) => {
+      state.access = { requirement, security };
+      return builder;
+    },
     pathParam: (name, value, options) => parameter("path", name, value, options),
     queryParam: (name, value, options) => parameter("query", name, value, options),
     headerParam: (name, value, options) => parameter("header", name, value, options),

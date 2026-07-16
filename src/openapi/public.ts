@@ -1,7 +1,9 @@
 import type { AuthRequirement } from "@askrjs/auth";
 import type { Middleware, PathParams, Router } from "../contracts";
 import type {
-  ApiHandler, ApiInput, ApiOperation,
+  ApiHandler,
+  ApiInput,
+  ApiOperation,
   OpenApiDocument,
   ParameterDefinition,
   Schema,
@@ -45,7 +47,11 @@ export interface RouteBuilder<Dependencies> {
   formBody(value: Schema, options?: BodyOptions): RouteBuilder<Dependencies>;
   multipartBody(value: Schema, options?: BodyOptions): RouteBuilder<Dependencies>;
   body(mediaType: string, value: Schema, options?: BodyOptions): RouteBuilder<Dependencies>;
-  response(status: number | string, value?: Schema, options?: ResponseOptions): RouteBuilder<Dependencies>;
+  response(
+    status: number | string,
+    value?: Schema,
+    options?: ResponseOptions,
+  ): RouteBuilder<Dependencies>;
   ok(value?: Schema, options?: ResponseOptions): RouteBuilder<Dependencies>;
   created(value?: Schema, options?: ResponseOptions): RouteBuilder<Dependencies>;
   accepted(value?: Schema, options?: ResponseOptions): RouteBuilder<Dependencies>;

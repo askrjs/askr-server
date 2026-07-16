@@ -34,7 +34,8 @@ function createTelemetryRecorder(): {
 } {
   const records: TelemetryRecord[] = [];
   let activeTraceId: string | undefined;
-  const wrap = (operation: ServerTelemetryOperation) =>
+  const wrap =
+    (operation: ServerTelemetryOperation) =>
     <T>(fields: ServerTelemetryFields, work: () => T): T => {
       records.push({ kind: "start", operation, fields: { ...fields } });
       const result = work();
@@ -72,7 +73,9 @@ function createTelemetryRecorder(): {
     }),
     withContext: (value, work) => {
       const previous = activeTraceId;
-      activeTraceId = (value as { traceparent?: string }).traceparent ? "trace-from-parent" : undefined;
+      activeTraceId = (value as { traceparent?: string }).traceparent
+        ? "trace-from-parent"
+        : undefined;
       try {
         return work();
       } finally {
@@ -93,29 +96,35 @@ describe("server telemetry", () => {
   it("should nest API execution under the request and record response status", async () => {
     const recorder = createTelemetryRecorder();
     const api = createApi({ info: { title: "Telemetry", version: "1" } });
-    api.post("/items", {
-      input: {
-        body: {
-          schema: schema.object({ name: schema.string() }),
-          mediaTypes: ["application/json"],
+    api
+      .post("/items", {
+        input: {
+          body: {
+            schema: schema.object({ name: schema.string() }),
+            mediaTypes: ["application/json"],
+          },
         },
-      },
-      handler: (context) => context.created({ ok: true }),
-    }).operationId("createItem").summary("Create an item").created(schema.object({ ok: schema.boolean() }));
+        handler: (context) => context.created({ ok: true }),
+      })
+      .operationId("createItem")
+      .summary("Create an item")
+      .created(schema.object({ ok: schema.boolean() }));
     const response = await createServerApp({
       router: api.createRouter(),
       telemetry: recorder.telemetry,
-    }).fetch(new Request("http://example.test/items", {
-      method: "POST",
-      headers: {
-        authorization: "Bearer private-token",
-        cookie: "session=private-cookie",
-        "content-type": "application/json",
-        traceparent: "00-11111111111111111111111111111111-2222222222222222-01",
-        "x-request-id": "request-1",
-      },
-      body: JSON.stringify({ name: "private-name" }),
-    }));
+    }).fetch(
+      new Request("http://example.test/items", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer private-token",
+          cookie: "session=private-cookie",
+          "content-type": "application/json",
+          traceparent: "00-11111111111111111111111111111111-2222222222222222-01",
+          "x-request-id": "request-1",
+        },
+        body: JSON.stringify({ name: "private-name" }),
+      }),
+    );
 
     expect(response.status).toBe(201);
     expect(lifecycle(recorder.records)).toEqual([
@@ -126,17 +135,19 @@ describe("server telemetry", () => {
       "end:askr.api.operation",
       "end:askr.request",
     ]);
-    expect(recorder.records).toContainEqual(expect.objectContaining({
-      kind: "end",
-      operation: "askr.api.operation",
-      fields: expect.objectContaining({
-        requestId: "request-1",
-        traceId: "trace-from-parent",
-        route: "/items",
-        operation: "createItem",
-        status: 201,
+    expect(recorder.records).toContainEqual(
+      expect.objectContaining({
+        kind: "end",
+        operation: "askr.api.operation",
+        fields: expect.objectContaining({
+          requestId: "request-1",
+          traceId: "trace-from-parent",
+          route: "/items",
+          operation: "createItem",
+          status: 201,
+        }),
       }),
-    }));
+    );
   });
 
   it("should instrument authorized actions without exposing submitted or credential data", async () => {
@@ -146,7 +157,8 @@ describe("server telemetry", () => {
       input: schema.object({ name: schema.string() }),
       invalidates: Object.freeze(["items"]),
     });
-    const actions = defineServerActions({ dependencies: {}, csrf: false },
+    const actions = defineServerActions(
+      { dependencies: {}, csrf: false },
       handleAction(descriptor, () => ({ result: { saved: true } })),
     );
     const registry = createRouteRegistry(() => {
@@ -155,17 +167,19 @@ describe("server telemetry", () => {
     const response = await createServerApp({
       telemetry: recorder.telemetry,
       fallback: createAskrPageHandler({ registry, actions }),
-    }).fetch(new Request("http://example.test/items/42", {
-      method: "POST",
-      headers: {
-        accept: "application/vnd.askr.action+json;v=1",
-        authorization: "Bearer action-token",
-        cookie: "session=action-cookie",
-        "content-type": "application/json",
-        "x-askr-action": descriptor.id,
-      },
-      body: JSON.stringify({ name: "submitted-private-name" }),
-    }));
+    }).fetch(
+      new Request("http://example.test/items/42", {
+        method: "POST",
+        headers: {
+          accept: "application/vnd.askr.action+json;v=1",
+          authorization: "Bearer action-token",
+          cookie: "session=action-cookie",
+          "content-type": "application/json",
+          "x-askr-action": descriptor.id,
+        },
+        body: JSON.stringify({ name: "submitted-private-name" }),
+      }),
+    );
 
     expect(response.status).toBe(200);
     expect(lifecycle(recorder.records)).toEqual([
@@ -178,25 +192,25 @@ describe("server telemetry", () => {
       "end:askr.action",
       "end:askr.request",
     ]);
-    expect(recorder.records).toContainEqual(expect.objectContaining({
-      kind: "end",
-      operation: "askr.action",
-      fields: expect.objectContaining({ action: "save-item", status: 200 }),
-    }));
+    expect(recorder.records).toContainEqual(
+      expect.objectContaining({
+        kind: "end",
+        operation: "askr.action",
+        fields: expect.objectContaining({ action: "save-item", status: 200 }),
+      }),
+    );
     const recorded = JSON.stringify(recorder.records);
     expect(recorded).not.toContain("submitted-private-name");
     expect(recorded).not.toContain("action-token");
     expect(recorded).not.toContain("action-cookie");
     for (const record of recorder.records) {
-      expect(Object.keys(record.fields).every((key) => [
-        "requestId",
-        "traceId",
-        "route",
-        "action",
-        "operation",
-        "status",
-        "durationMs",
-      ].includes(key))).toBe(true);
+      expect(
+        Object.keys(record.fields).every((key) =>
+          ["requestId", "traceId", "route", "action", "operation", "status", "durationMs"].includes(
+            key,
+          ),
+        ),
+      ).toBe(true);
     }
   });
 

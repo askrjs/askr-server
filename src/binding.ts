@@ -120,7 +120,9 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
   return {};
 }
 
-export async function bind<T extends object = Record<string, unknown>>(context: BindContext): Promise<T> {
+export async function bind<T extends object = Record<string, unknown>>(
+  context: BindContext,
+): Promise<T> {
   const body = await readBody(context.request);
   return {
     ...body,
