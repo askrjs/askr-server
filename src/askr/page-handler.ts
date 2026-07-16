@@ -22,7 +22,7 @@ export interface AskrPageHandlerOptions {
   auth?: RouteAuthOptions;
   queryRegistry?: ServerQueryRegistry;
   seed?: number;
-  actions?: ActionRegistry<unknown>;
+  actions?: ActionRegistry<any>;
 }
 
 function headerValue(value: string): string {

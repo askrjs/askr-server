@@ -3,7 +3,7 @@ import { createRouteRegistry, route } from "@askrjs/askr/router";
 import { schema } from "@askrjs/schema";
 import { describe, expect, it, vi } from "vitest";
 import { createServerApp } from "../src/application";
-import { createActionRegistry } from "../src/askr/actions";
+import { defineServerActions, handleAction, type ActionRegistry } from "../src/askr/actions";
 import { createAskrPageHandler } from "../src/askr/page-handler";
 
 const user: AuthContext = {
@@ -20,7 +20,7 @@ const save = Object.freeze({
 });
 
 function actionApp(
-  actionRegistry: ReturnType<typeof createActionRegistry<{ store: string }>>,
+  actionRegistry: ActionRegistry<{ store: string }>,
   options: { redirect?: boolean } = {},
 ) {
   const registry = createRouteRegistry(() => {
@@ -40,9 +40,8 @@ function actionApp(
 describe("page actions", () => {
   it("should capture dependencies once and pass matched route context", async () => {
     const dependencies = { store: "store-1" };
-    const actions = createActionRegistry(dependencies, { csrf: false });
     const handler = vi.fn((_context, input, deps) => ({ result: { input, store: deps.store } }));
-    actions.register(save, handler);
+    const actions = defineServerActions({ dependencies, csrf: false }, handleAction(save, handler));
     const response = await actionApp(actions).fetch(new Request("http://example.test/items/42", {
       method: "POST",
       headers: {
@@ -67,9 +66,8 @@ describe("page actions", () => {
   });
 
   it("should authorize a descriptor for the matched page only", async () => {
-    const actions = createActionRegistry({ store: "store-1" }, { csrf: false });
     const handler = vi.fn(() => ({ result: true }));
-    actions.register(save, handler);
+    const actions = defineServerActions({ dependencies: { store: "store-1" }, csrf: false }, handleAction(save, handler));
     const response = await actionApp(actions).fetch(new Request("http://example.test/other", {
       method: "POST",
       headers: {
@@ -84,9 +82,8 @@ describe("page actions", () => {
   });
 
   it("should rerender native validation failures with submitted values and field errors", async () => {
-    const actions = createActionRegistry({ store: "store-1" }, { csrf: false });
     const handler = vi.fn(() => ({ result: true }));
-    actions.register(save, handler);
+    const actions = defineServerActions({ dependencies: { store: "store-1" }, csrf: false }, handleAction(save, handler));
     const response = await actionApp(actions).fetch(new Request("http://example.test/items/42", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -104,9 +101,8 @@ describe("page actions", () => {
   });
 
   it("should protect page actions with session-bound CSRF by default", async () => {
-    const actions = createActionRegistry({ store: "store-1" }, { csrf: { secret: "test-secret" } });
     const handler = vi.fn(() => ({ result: true }));
-    actions.register(save, handler);
+    const actions = defineServerActions({ dependencies: { store: "store-1" }, csrf: { secret: "test-secret" } }, handleAction(save, handler));
     const app = actionApp(actions);
     const page = await app.fetch(new Request("http://example.test/items/42"));
     const pageHtml = await page.text();
@@ -133,8 +129,7 @@ describe("page actions", () => {
   });
 
   it("should reject redirects outside the same-origin matched route set", async () => {
-    const actions = createActionRegistry({ store: "store-1" }, { csrf: false });
-    actions.register(save, () => ({ redirect: "https://attacker.test/" }));
+    const actions = defineServerActions({ dependencies: { store: "store-1" }, csrf: false }, handleAction(save, () => ({ redirect: "https://attacker.test/" })));
     const response = await actionApp(actions, { redirect: true }).fetch(new Request("http://example.test/items/42", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },

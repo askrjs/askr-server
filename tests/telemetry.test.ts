@@ -1,9 +1,9 @@
 import { createRouteRegistry, route } from "@askrjs/askr/router";
-import { createServerQueryRegistry, defineQuery } from "@askrjs/askr/data";
+import { defineServerQueries, defineQuery, serveQuery } from "@askrjs/askr/data";
 import { schema } from "@askrjs/schema";
 import { describe, expect, it } from "vitest";
 import { createServerApp } from "../src/application";
-import { createActionRegistry } from "../src/askr/actions";
+import { defineServerActions, handleAction } from "../src/askr/actions";
 import { createAskrPageHandler } from "../src/askr/page-handler";
 import type {
   ServerTelemetry,
@@ -146,8 +146,9 @@ describe("server telemetry", () => {
       input: schema.object({ name: schema.string() }),
       invalidates: Object.freeze(["items"]),
     });
-    const actions = createActionRegistry({}, { csrf: false });
-    actions.register(descriptor, () => ({ result: { saved: true } }));
+    const actions = defineServerActions({ dependencies: {}, csrf: false },
+      handleAction(descriptor, () => ({ result: { saved: true } })),
+    );
     const registry = createRouteRegistry(() => {
       route("/items/{id}", () => "item", { actions: [descriptor] });
     });
@@ -205,9 +206,8 @@ describe("server telemetry", () => {
       key: () => "catalog",
       fetch: async () => ({ title: "catalog" }),
     });
-    const queryRegistry = createServerQueryRegistry().register(
-      query,
-      async () => ({ title: "catalog" }),
+    const queryRegistry = defineServerQueries(
+      serveQuery(query, async () => ({ title: "catalog" })),
     );
     const registry = createRouteRegistry(() => {
       route("/catalog/{id}", ({ id }) => `catalog:${id}`, {

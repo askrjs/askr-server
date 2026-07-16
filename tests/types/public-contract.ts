@@ -1,6 +1,6 @@
 import { createRouter, type PathParams } from "../../dist/index.js";
 import { createApi, schema, type InferSchema } from "../../dist/openapi.js";
-import { createActionRegistry, createAskrPageHandler } from "../../dist/askr.js";
+import { defineServerActions, handleAction, createAskrPageHandler } from "../../dist/askr.js";
 import type { ActionDescriptor } from "@askrjs/askr/actions";
 import type { RouteManifest } from "@askrjs/askr/router";
 
@@ -141,11 +141,10 @@ const SaveAction = {
   input: schema.object({ name: schema.string() }),
   invalidates: ["items:"],
 } satisfies ActionDescriptor<{ name: string }>;
-const actions = createActionRegistry({ store: { write: (name: string) => name } }, { csrf: false });
-actions.register(SaveAction, (context, input, dependencies) => {
+const actions = defineServerActions({ dependencies: { store: { write: (name: string) => name } }, csrf: false }, handleAction(SaveAction, (context, input, dependencies) => {
   context.params.id satisfies string;
   input.name satisfies string;
   return { result: dependencies.store.write(input.name) };
-});
+}));
 declare const manifest: RouteManifest;
 createAskrPageHandler({ manifest, actions });

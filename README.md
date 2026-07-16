@@ -273,7 +273,9 @@ outside production.
 
 ## Page actions and request protection
 
-`createActionRegistry(dependencies)` captures server dependencies once. A page
+`defineServerActions({ dependencies }, ...entries)` captures server dependencies
+once and returns a frozen structural registry. Pair descriptors and handlers
+with `handleAction(descriptor, handler)`; registries have no mutation phase. A page
 route authorizes its browser-safe descriptors with `actions: [descriptor]`,
 and `createAskrPageHandler({ registry, actions })` dispatches only descriptors
 authorized by the matched page. Handlers receive route params, auth, policies,

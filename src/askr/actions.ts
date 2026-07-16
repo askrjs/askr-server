@@ -63,15 +63,28 @@ export type ActionExecution =
     };
 
 export interface ActionRegistry<Dependencies> {
-  register<Input extends Record<string, unknown>, Result = unknown>(
-    descriptor: ActionDescriptor<Input>,
-    handler: ActionHandler<Dependencies, Input, Result>,
-  ): void;
+  readonly entries: readonly ActionEntry<Dependencies>[];
   csrfToken(context: ServerContext): Promise<string | undefined>;
   execute(
     context: ServerContext,
     options: ActionExecutionOptions,
   ): Promise<ActionExecution | undefined>;
+}
+
+export interface ActionEntry<Dependencies, Input extends Record<string, unknown> = Record<string, unknown>, Result = unknown> {
+  readonly descriptor: ActionDescriptor<Input>;
+  readonly handler: ActionHandler<Dependencies, Input, Result>;
+}
+
+export interface ServerActionsOptions<Dependencies> extends ActionRegistryOptions {
+  readonly dependencies: Dependencies;
+}
+
+export function handleAction<Dependencies, Input extends Record<string, unknown>, Result = unknown>(
+  descriptor: ActionDescriptor<Input>,
+  handler: ActionHandler<Dependencies, Input, Result>,
+): ActionEntry<Dependencies, Input, Result> {
+  return Object.freeze({ descriptor, handler });
 }
 
 function randomSecret(): string {
@@ -131,10 +144,11 @@ async function readSubmission(
   }
 }
 
-export function createActionRegistry<Dependencies>(
-  dependencies: Dependencies,
-  options: ActionRegistryOptions = {},
+export function defineServerActions<Dependencies>(
+  options: ServerActionsOptions<Dependencies>,
+  ...entries: readonly ActionEntry<Dependencies, any, any>[]
 ): ActionRegistry<Dependencies> {
+  const { dependencies } = options;
   const csrf = options.csrf === false
     ? false
     : {
@@ -144,15 +158,13 @@ export function createActionRegistry<Dependencies>(
         formField: options.csrf?.formField ?? "_csrf",
       };
   const handlers = new Map<string, RegisteredAction<Dependencies>>();
+  for (const entry of entries) {
+    if (handlers.has(entry.descriptor.id)) throw new Error(`Duplicate action ${entry.descriptor.id}.`);
+    handlers.set(entry.descriptor.id, entry as RegisteredAction<Dependencies>);
+  }
 
-  return {
-    register(descriptor, handler) {
-      if (handlers.has(descriptor.id)) throw new Error(`Duplicate action ${descriptor.id}.`);
-      handlers.set(descriptor.id, {
-        descriptor,
-        handler: handler as ActionHandler<Dependencies>,
-      });
-    },
+  const registry: ActionRegistry<Dependencies> = {
+    entries: Object.freeze([...entries]) as readonly ActionEntry<Dependencies>[],
     async csrfToken(context) {
       if (!csrf) return undefined;
       const session = csrf.sessionId(context);
@@ -222,4 +234,5 @@ export function createActionRegistry<Dependencies>(
       return result;
     },
   };
+  return Object.freeze(registry);
 }
