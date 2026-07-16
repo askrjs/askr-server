@@ -232,7 +232,82 @@ object is deterministic and deeply frozen; YAML serialization belongs to the
 CLI or another outer adapter.
 
 Keep WebSockets, `CONNECT`, wildcard fallbacks, probes, and intentionally
-undocumented routes on the generic router. OpenAPI schemas describe the
-contract only: request and response validation is not performed. `ctx.bind()`
-uses the flat model-binding rules documented above; it does not validate against
-OpenAPI request schemas.
+undocumented routes on the generic router. Executable operations declare each
+transport source independently:
+
+```ts
+api.post("/api/users/{id}", {
+  input: {
+    params: schema.object({ id: schema.uuid() }),
+    query: schema.object({ notify: schema.optional(schema.string()) }),
+    headers: schema.object({ "if-match": schema.string() }, { additionalProperties: true }),
+    body: {
+      schema: schema.object({ name: schema.string({ minLength: 1 }) }),
+      mediaTypes: ["application/json"],
+    },
+  },
+  documentation: {
+    params: { id: {} },
+    query: { notify: {} },
+    headers: { "if-match": { description: "Quoted user version" } },
+    body: { required: true },
+  },
+  handler: async (ctx, input, deps) => {
+    return ctx.ok(await deps.users.update(input.params.id, input.body));
+  },
+})
+  .operationId("updateUser")
+  .summary("Update a user")
+  .ok(User);
+```
+
+Malformed declared transport input returns `400`. Executable-schema rejection
+returns `422` with paths prefixed by `params`, `query`, `headers`, or `body`.
+A declared body is never derived from the flat `ctx.bind()` model. Response
+parameters and request bodies are generated directly from these executable
+schemas; optional `documentation` may add descriptions, examples, and parameter
+metadata but cannot replace a schema. Schema-bearing route-builder methods are
+reserved for intentionally unvalidated raw handlers. Response
+validation is disabled by default; `validateResponses: true` enables it only
+outside production.
+
+## Page actions and request protection
+
+`createActionRegistry(dependencies)` captures server dependencies once. A page
+route authorizes its browser-safe descriptors with `actions: [descriptor]`,
+and `createAskrPageHandler({ registry, actions })` dispatches only descriptors
+authorized by the matched page. Handlers receive route params, auth, policies,
+the abort signal, validated input, and the captured dependencies.
+
+Page actions use session-bound HMAC CSRF by default. The page render hydrates a
+token which `<ActionForm>` posts as `_csrf` and enhanced `action()` calls send
+as `x-askr-csrf-token`. Native success is a `303` to a same-origin matched
+route. Native validation failure rerenders at `422` with submitted values and
+field errors; enhanced requests receive the versioned JSON envelope and query
+prefix invalidations.
+
+Generic API routes can opt into `csrf({ secret })` and store-backed
+`rateLimit({ store, limit, windowMs })` middleware. Rate-limit rejection emits
+`429`, `Retry-After`, and `RateLimit-Limit`, `RateLimit-Remaining`, and
+`RateLimit-Reset` headers.
+
+## Optional telemetry
+
+Applications may create one telemetry service with `@askrjs/otel` and pass it
+at the composition root. The server does not install a telemetry backend or
+import the optional package at runtime:
+
+```ts
+import { createTelemetry } from "@askrjs/otel";
+import { createServerApp } from "@askrjs/server";
+
+const telemetry = createTelemetry();
+const app = createServerApp({ router, fallback: pages, telemetry });
+```
+
+The service receives nested request, route-match, API-operation, action,
+query-prefetch, loader, and SSR spans. Trace context is extracted from request
+headers when the service supports propagation. Structured server fields are
+limited to request and trace IDs, route/action/operation identities, status,
+and duration; request bodies, cookies, authorization values, CSRF tokens,
+submitted fields, and auth principals are never forwarded.

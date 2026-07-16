@@ -1,18 +1,8 @@
 import type { AuthRequirement } from "@askrjs/auth";
+import type { InferSchema, JsonSchema, ObjectSchema, Schema } from "@askrjs/schema";
 import type { Middleware, Params, ServerContext } from "../contracts";
 
-export type JsonSchema = Record<string, unknown>;
-
-export interface Schema<T = unknown> {
-  readonly value: JsonSchema;
-  readonly __type?: T;
-}
-
-export interface OptionalSchema<T> extends Schema<T> {
-  readonly __optionalType: T;
-}
-
-export type InferSchema<T> = T extends Schema<infer Value> ? Value : never;
+export type { InferSchema, JsonSchema, ObjectSchema, OptionalSchema, Schema } from "@askrjs/schema";
 
 export interface ContactObject {
   readonly name?: string;
@@ -61,6 +51,8 @@ export interface ApiOptions {
   readonly servers?: readonly ServerObject[];
   readonly externalDocs?: ExternalDocumentationObject;
   readonly securitySchemes?: Readonly<Record<string, SecurityScheme>>;
+  /** Validate documented response bodies only when explicitly enabled outside production. */
+  readonly validateResponses?: boolean;
   readonly [extension: `x-${string}`]: unknown;
 }
 
@@ -71,10 +63,57 @@ export type ApiHandler<Dependencies, RouteParams extends Params = Params> = {
   ): Response | Promise<Response>;
 }["bivarianceHack"];
 
+export interface ApiInput {
+  readonly params?: ObjectSchema;
+  readonly query?: ObjectSchema;
+  readonly headers?: ObjectSchema;
+  readonly body?: ApiBodyInput;
+}
+export interface ApiBodyInput<BodySchema extends Schema = Schema> {
+  readonly schema: BodySchema;
+  readonly mediaTypes: readonly string[];
+}
+export type InferApiInput<T extends ApiInput> = {
+  [Key in keyof T]: T[Key] extends Schema
+    ? InferSchema<T[Key]>
+    : T[Key] extends ApiBodyInput<infer BodySchema>
+      ? InferSchema<BodySchema>
+      : never;
+};
+export interface InputDocumentation {
+  readonly params?: Readonly<Record<string, ParameterMetadata>>;
+  readonly query?: Readonly<Record<string, ParameterMetadata>>;
+  readonly headers?: Readonly<Record<string, ParameterMetadata>>;
+  readonly body?: BodyMetadata;
+}
+export interface ParameterMetadata {
+  readonly description?: string;
+  readonly deprecated?: boolean;
+  readonly example?: unknown;
+}
+export interface BodyMetadata {
+  readonly required?: boolean;
+  readonly description?: string;
+  readonly examples?: Record<string, unknown>;
+}
+export interface ApiOperation<
+  Dependencies,
+  Input extends ApiInput = ApiInput,
+  RouteParams extends Params = Params,
+> {
+  readonly input?: Input;
+  readonly documentation?: InputDocumentation;
+  readonly handler: (
+    context: ServerContext<RouteParams>,
+    input: InferApiInput<Input>,
+    dependencies: Dependencies,
+  ) => Response | Promise<Response>;
+}
+
 export interface ParameterDefinition {
   name: string;
   in: "path" | "query" | "header" | "cookie";
-  schema: Schema;
+  schema: Pick<Schema, "openapi">;
   description?: string;
   required?: boolean;
   deprecated?: boolean;
@@ -120,6 +159,7 @@ export interface RouteState<Dependencies> {
   deprecated?: boolean;
   externalDocs?: ExternalDocumentationObject;
   errors: string[];
+  input?: ApiInput;
 }
 
 export interface MediaTypeObject {

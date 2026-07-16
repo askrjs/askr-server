@@ -74,4 +74,26 @@ describe("server architecture", () => {
     expect(matcher).not.toMatch(/new URL\(/);
     expect(application).toContain("matcher.match(context.url.pathname, request.method)");
   });
+
+  it("should keep public exports free of React-shaped vocabulary", () => {
+    const publicEntries = [
+      "src/index.ts",
+      "src/http/index.ts",
+      "src/router/index.ts",
+      "src/middleware/index.ts",
+      "src/openapi/index.ts",
+      "src/askr/index.ts",
+    ].map((file) => readFileSync(resolve(root, file), "utf8")).join("\n");
+    expect(publicEntries).not.toMatch(/\b(?:defineContext|readContext)\b/);
+    expect(publicEntries).not.toMatch(/export[^\n]*\buse[A-Z][A-Za-z]+\b/);
+    expect(publicEntries).not.toMatch(/export[^\n]*\b[A-Z][A-Za-z]+Provider\b/);
+  });
+
+  it("should keep telemetry composition-owned without a runtime package import", () => {
+    for (const file of files(resolve(root, "src"))) {
+      expect(readFileSync(file, "utf8"), relative(root, file)).not.toMatch(
+        /(?:from|import\()[ (]*["']@askrjs\/otel["']/,
+      );
+    }
+  });
 });

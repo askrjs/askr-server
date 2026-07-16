@@ -8,7 +8,10 @@ import type {
 } from "./public";
 import type { RouteState, Schema } from "./types";
 
-const problem = (): Schema => ({ value: { $ref: "#/components/schemas/Problem" } });
+const problem = (): Schema => ({
+  openapi: { $ref: "#/components/schemas/Problem" },
+  safeParse: (value) => ({ success: true, data: value }),
+});
 
 const responseDescriptions: Record<string, string> = {
   "200": "OK",
@@ -40,6 +43,13 @@ function addParameter<Dependencies>(
   value: Schema,
   options: ParameterOptions = {},
 ): void {
+  if (state.input) {
+    state.errors.push(`executable operation input conflicts with ${location} parameter ${name}`);
+    return;
+  }
+  if (state.parameters.some((parameter) => parameter.in === location && parameter.name === name)) {
+    state.errors.push(`duplicate ${location} parameter ${name}`);
+  }
   state.parameters.push({
     name,
     in: location,
@@ -55,9 +65,14 @@ function addBody<Dependencies>(
   value: Schema,
   options: BodyOptions = {},
 ): void {
-  const existing = state.bodies.find((body) => body.mediaType === mediaType);
-  if (existing) state.errors.push(`duplicate request body media type ${mediaType}`);
-  state.bodies.push({ mediaType, schema: value, ...options });
+  const normalized = mediaType.trim().toLowerCase();
+  if (state.input) {
+    state.errors.push(`executable operation input conflicts with request body ${normalized}`);
+    return;
+  }
+  const existing = state.bodies.find((body) => body.mediaType === normalized);
+  if (existing) state.errors.push(`duplicate request body media type ${normalized}`);
+  state.bodies.push({ mediaType: normalized, schema: value, ...options });
 }
 
 function addResponse<Dependencies>(

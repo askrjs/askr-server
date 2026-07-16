@@ -2,6 +2,11 @@
   "name": "@askrjs/server",
   "version": "0.0.1",
   "description": "Transport-neutral HTTP application core built on Web Request and Response",
+  "keywords": ["askr", "http", "openapi", "server"],
+  "homepage": "https://github.com/askrjs/askr-server#readme",
+  "bugs": { "url": "https://github.com/askrjs/askr-server/issues" },
+  "repository": { "type": "git", "url": "git+https://github.com/askrjs/askr-server.git" },
+  "author": { "name": "askrjs", "url": "https://github.com/askrjs" },
   "license": "Apache-2.0",
   "files": [
     "dist/**/*.js",
@@ -34,8 +39,10 @@
     "./openapi": {
       "types": "./dist/openapi.d.ts",
       "import": "./dist/openapi.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
+  "publishConfig": { "access": "public" },
   "scripts": {
     "build": "vp pack",
     "bench": "npm run bench:dispatch && npm run bench:binding && npm run bench:tier1 && npm run bench:tier2 && npm run bench:tier3 && npm run bench:tier4",
@@ -52,14 +59,18 @@
     "test:unit": "vp test run -c vitest.test.unit.config.ts",
     "test:checks": "npm run typecheck && npm run test:types",
     "test:types": "npm run build && tsc -p tests/types/tsconfig.json",
-    "check": "npm run lint && npm run typecheck && npm test",
-    "prepublishOnly": "npm run check && npm run build"
+    "test:publint": "publint",
+    "pack:check": "npm pack --ignore-scripts --dry-run --json",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build && npm run test:publint && npm run pack:check",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check"
   },
   "dependencies": {
-    "@askrjs/auth": ">=0.0.1 <0.1.0"
+    "@askrjs/auth": ">=0.0.1 <0.1.0",
+    "@askrjs/schema": ">=0.0.1 <0.1.0"
   },
   "peerDependencies": {
-    "@askrjs/askr": ">=0.0.52 <0.1.0"
+    "@askrjs/askr": ">=0.0.53 <0.1.0"
   },
   "peerDependenciesMeta": {
     "@askrjs/askr": {
@@ -67,6 +78,8 @@
     }
   },
   "devDependencies": {
+    "@askrjs/askr": "file:../askr",
+    "publint": "^0.3.12",
     "typescript": "^6.0.0",
     "vite-plus": "^0.2.4",
     "vitest": "^4.0.0"

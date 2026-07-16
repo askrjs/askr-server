@@ -1,5 +1,8 @@
 import { createRouter, type PathParams } from "../../dist/index.js";
 import { createApi, schema, type InferSchema } from "../../dist/openapi.js";
+import { createActionRegistry, createAskrPageHandler } from "../../dist/askr.js";
+import type { ActionDescriptor } from "@askrjs/askr/actions";
+import type { RouteManifest } from "@askrjs/askr/router";
 
 const router = createRouter();
 router.get("/users/{id}", (ctx) => {
@@ -57,6 +60,29 @@ dependent.createRouter();
 dependent.createRouter(undefined);
 dependent.createRouter({ store: { read: (id) => id } });
 
+dependent.post("/items/{id}", {
+  input: {
+    params: schema.object({ id: schema.string() }),
+    body: {
+      schema: schema.object({ name: schema.string() }),
+      mediaTypes: ["application/json"],
+    },
+  },
+  handler: (ctx, input, dependencies) => {
+    input.params.id satisfies string;
+    input.body.name satisfies string;
+    dependencies.store.read(ctx.params.id) satisfies string;
+    return ctx.ok();
+  },
+}).operationId("updateItem").summary("Update item").ok();
+
+const canonicalInput = dependent.post("/canonical", {
+  input: { query: schema.object({ page: schema.integer() }) },
+  handler: (ctx) => ctx.ok(),
+});
+// @ts-expect-error executable operations cannot declare replacement input schemas
+canonicalInput.queryParam("page", schema.string());
+
 const dependencyFree = createApi({ info: { title: "Free", version: "1" } });
 dependencyFree.createRouter();
 
@@ -109,3 +135,17 @@ if (typedOperation) typedOperation.responses["200"].description satisfies string
 document.components.schemas.Named satisfies Readonly<Record<string, unknown>>;
 // @ts-expect-error generated documents are readonly
 document.openapi = "3.0.0";
+
+const SaveAction = {
+  id: "save-item",
+  input: schema.object({ name: schema.string() }),
+  invalidates: ["items:"],
+} satisfies ActionDescriptor<{ name: string }>;
+const actions = createActionRegistry({ store: { write: (name: string) => name } }, { csrf: false });
+actions.register(SaveAction, (context, input, dependencies) => {
+  context.params.id satisfies string;
+  input.name satisfies string;
+  return { result: dependencies.store.write(input.name) };
+});
+declare const manifest: RouteManifest;
+createAskrPageHandler({ manifest, actions });

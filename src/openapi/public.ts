@@ -1,7 +1,7 @@
 import type { AuthRequirement } from "@askrjs/auth";
 import type { Middleware, PathParams, Router } from "../contracts";
 import type {
-  ApiHandler,
+  ApiHandler, ApiInput, ApiOperation,
   OpenApiDocument,
   ParameterDefinition,
   Schema,
@@ -68,7 +68,34 @@ export interface RouteBuilder<Dependencies> {
   serviceUnavailable(value?: Schema, options?: ResponseOptions): RouteBuilder<Dependencies>;
 }
 
+type InputSchemaBuilderMethod =
+  | "pathParam"
+  | "queryParam"
+  | "headerParam"
+  | "cookieParam"
+  | "jsonBody"
+  | "formBody"
+  | "multipartBody"
+  | "body";
+
+/** An executable operation already owns every request-input schema. */
+export type OperationRouteBuilder<Dependencies> = Omit<
+  RouteBuilder<Dependencies>,
+  InputSchemaBuilderMethod
+>;
+
 type JoinPath<Prefix extends string, Path extends string> = `${Prefix}${Path}`;
+
+export interface ApiMethod<Dependencies, Prefix extends string> {
+  <const Path extends string, const Input extends ApiInput>(
+    path: Path,
+    operation: ApiOperation<Dependencies, Input, PathParams<JoinPath<Prefix, Path>>>,
+  ): OperationRouteBuilder<Dependencies>;
+  <const Path extends string>(
+    path: Path,
+    handler: ApiHandler<Dependencies, PathParams<JoinPath<Prefix, Path>>>,
+  ): RouteBuilder<Dependencies>;
+}
 
 export interface ApiGroup<Dependencies, Prefix extends string = ""> {
   tags(...values: string[]): ApiGroup<Dependencies>;
@@ -79,18 +106,18 @@ export interface ApiGroup<Dependencies, Prefix extends string = ""> {
   headerParam(name: string, value: Schema, options?: ParameterOptions): ApiGroup<Dependencies>;
   cookieParam(name: string, value: Schema, options?: ParameterOptions): ApiGroup<Dependencies>;
   group<const Child extends string>(prefix: Child): ApiGroup<Dependencies, JoinPath<Prefix, Child>>;
-  get<const Path extends string>(path: Path, handler: ApiHandler<Dependencies, PathParams<JoinPath<Prefix, Path>>>): RouteBuilder<Dependencies>;
-  post<const Path extends string>(path: Path, handler: ApiHandler<Dependencies, PathParams<JoinPath<Prefix, Path>>>): RouteBuilder<Dependencies>;
-  put<const Path extends string>(path: Path, handler: ApiHandler<Dependencies, PathParams<JoinPath<Prefix, Path>>>): RouteBuilder<Dependencies>;
-  patch<const Path extends string>(path: Path, handler: ApiHandler<Dependencies, PathParams<JoinPath<Prefix, Path>>>): RouteBuilder<Dependencies>;
-  delete<const Path extends string>(path: Path, handler: ApiHandler<Dependencies, PathParams<JoinPath<Prefix, Path>>>): RouteBuilder<Dependencies>;
-  options<const Path extends string>(path: Path, handler: ApiHandler<Dependencies, PathParams<JoinPath<Prefix, Path>>>): RouteBuilder<Dependencies>;
-  head<const Path extends string>(path: Path, handler: ApiHandler<Dependencies, PathParams<JoinPath<Prefix, Path>>>): RouteBuilder<Dependencies>;
-  trace<const Path extends string>(path: Path, handler: ApiHandler<Dependencies, PathParams<JoinPath<Prefix, Path>>>): RouteBuilder<Dependencies>;
+  get: ApiMethod<Dependencies, Prefix>;
+  post: ApiMethod<Dependencies, Prefix>;
+  put: ApiMethod<Dependencies, Prefix>;
+  patch: ApiMethod<Dependencies, Prefix>;
+  delete: ApiMethod<Dependencies, Prefix>;
+  options: ApiMethod<Dependencies, Prefix>;
+  head: ApiMethod<Dependencies, Prefix>;
+  trace: ApiMethod<Dependencies, Prefix>;
 }
 
 export interface ApiDefinition<Dependencies> extends ApiGroup<Dependencies, ""> {
-  schema<T>(name: string, value: Schema<T>): Schema<T>;
+  schema<const Value extends Schema>(name: string, value: Value): Value;
   createRouter: [Dependencies] extends [undefined]
     ? (dependencies?: undefined) => Router
     : (dependencies: Dependencies) => Router;

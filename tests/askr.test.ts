@@ -124,4 +124,26 @@ describe("Askr page fallback", () => {
     expect(response.headers.get("content-type")).toContain("askr-fragment=1");
     expect(await response.text()).toBe("fragment");
   });
+
+  it("should emit escaped deterministic owned metadata", async () => {
+    const registry = createRouteRegistry(() => route("/", () => "fragment", {
+      meta: {
+        title: "<unsafe> & title",
+        description: 'a "quoted" description',
+        openGraph: { title: "OG title" },
+        links: [{ rel: "alternate", href: 'https://example.test/?q="unsafe"' }],
+        jsonLd: { value: "</script><script>alert(1)</script>" },
+        html: { lang: "en\r\nmalicious", dir: "ltr" },
+      },
+    }));
+    const response = await createServerApp({ fallback: createAskrPageHandler({ registry }) })
+      .fetch(new Request("http://example.test/"));
+    const head = response.headers.get("x-askr-head") ?? "";
+    expect(head).toContain("<title data-askr-head=\"\">&lt;unsafe&gt; &amp; title</title>");
+    expect(head).toContain("property=\"og:title\"");
+    expect(head).toContain("\\u003c/script\\u003e");
+    expect(head).not.toContain("<script>alert(1)</script>");
+    expect(response.headers.get("x-askr-html-lang")).toBe("en malicious");
+    expect(response.headers.get("x-askr-html-dir")).toBe("ltr");
+  });
 });

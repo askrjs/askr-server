@@ -15,7 +15,7 @@ function visitSchema(value: unknown, visit: (ref: string) => void): void {
   for (const item of Object.values(record)) visitSchema(item, visit);
 }
 
-function routeSchemas<Dependencies>(route: RouteState<Dependencies>): Schema[] {
+function routeSchemas<Dependencies>(route: RouteState<Dependencies>): Array<Pick<Schema, "openapi">> {
   return [
     ...route.parameters.map((parameter) => parameter.schema),
     ...route.bodies.map((body) => body.schema),
@@ -29,7 +29,7 @@ function validateReferences<Dependencies>(
 ): string[] {
   const errors: string[] = [];
   const values: unknown[] = [...schemas.values()];
-  for (const route of routes) values.push(...routeSchemas(route).map((value) => value.value));
+  for (const route of routes) values.push(...routeSchemas(route).map((value) => value.openapi));
   for (const value of values) {
     visitSchema(value, (ref) => {
       const prefix = "#/components/schemas/";

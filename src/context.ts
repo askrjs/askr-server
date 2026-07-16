@@ -10,7 +10,7 @@ export function anonymousAuthContext(): AuthContext {
 export function createServerContext(
   request: Request,
   auth: AuthContext,
-  options: Pick<ServerAppOptions, "websocket">,
+  options: Pick<ServerAppOptions, "telemetry" | "websocket">,
 ): ServerContext {
   const url = new URL(request.url);
   let bound: Promise<Record<string, unknown>> | undefined;
@@ -28,6 +28,7 @@ export function createServerContext(
     state: {},
     auth,
     signal: request.signal,
+    telemetry: options.telemetry,
     bind: <T extends object = Record<string, unknown>>() => {
       bound ??= bind(context);
       return bound as Promise<T>;

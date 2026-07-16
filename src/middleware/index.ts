@@ -6,3 +6,7 @@ export { enforceHttps } from "./enforce-https";
 export { requestId } from "./request-id";
 export { securityHeaders } from "./security-headers";
 export { trace } from "./trace";
+export { createCsrfToken, csrf, verifyCsrfToken } from "./csrf";
+export type { CsrfOptions } from "./csrf";
+export { rateLimit } from "./rate-limit";
+export type { RateLimitOptions, RateLimitStore } from "./rate-limit";

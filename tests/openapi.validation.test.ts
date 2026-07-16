@@ -15,7 +15,10 @@ describe("OpenAPI strict validation", () => {
     ["path mismatch", (api: ReturnType<typeof createApi>) => validRoute(api, "/x/{id}", "x"), /path parameters must exactly match/],
     ["extra path parameter", (api: ReturnType<typeof createApi>) => validRoute(api, "/x", "x").pathParam("id", schema.string()), /path parameters must exactly match/],
     ["invalid status", (api: ReturnType<typeof createApi>) => validRoute(api).response(99), /invalid response status/],
-    ["unresolved reference", (api: ReturnType<typeof createApi>) => validRoute(api).ok(schema.ref("Missing")), /unresolved schema reference/],
+    ["unresolved reference", (api: ReturnType<typeof createApi>) => validRoute(api).ok(schema.raw(
+      { $ref: "#/components/schemas/Missing" },
+      (value) => ({ success: true, data: value }),
+    )), /unresolved schema reference/],
     ["unresolved security", (api: ReturnType<typeof createApi>) => validRoute(api).access(() => ({ allowed: true }), security.require("missing")), /unresolved security scheme/],
     ["invalid component", (api: ReturnType<typeof createApi>) => { api.schema("bad name", schema.string()); validRoute(api); }, /invalid component name/],
     ["duplicate response", (api: ReturnType<typeof createApi>) => validRoute(api).ok(), /duplicate explicit response/],

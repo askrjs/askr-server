@@ -36,7 +36,7 @@ function parameter(value: ParameterDefinition): ParameterObject {
     ...(value.description ? { description: value.description } : {}),
     ...((value.in === "path" || value.required) ? { required: true } : {}),
     ...(value.deprecated ? { deprecated: true } : {}),
-    schema: normalize(value.schema.value) as JsonSchema,
+    schema: normalize(value.schema.openapi) as JsonSchema,
     ...(value.example !== undefined ? { example: value.example } : {}),
   };
 }
@@ -49,7 +49,7 @@ function response(value: ResponseDefinition): ResponseObject {
       ? {
           content: {
             [value.mediaType]: {
-              schema: normalize(value.schema.value) as JsonSchema,
+              schema: normalize(value.schema.openapi) as JsonSchema,
               ...(value.examples ? { examples: normalize(value.examples) as Readonly<Record<string, unknown>> } : {}),
             },
           },
@@ -65,7 +65,7 @@ function requestBody<Dependencies>(route: RouteState<Dependencies>): RequestBody
     ...(descriptions[0] ? { description: descriptions[0] } : {}),
     ...(route.bodies.some((body) => body.required) ? { required: true } : {}),
     content: sortedRecord(route.bodies.map((body) => [body.mediaType, {
-      schema: normalize(body.schema.value) as JsonSchema,
+      schema: normalize(body.schema.openapi) as JsonSchema,
       ...(body.examples ? { examples: normalize(body.examples) as Readonly<Record<string, unknown>> } : {}),
     }] as const)),
   };

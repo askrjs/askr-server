@@ -16,6 +16,47 @@ export type PathParams<Path extends string> = string extends Path
   : { [Name in PathParameterNames<Path>]: string };
 export type JsonValue = unknown;
 
+export type ServerTelemetryOperation =
+  | "askr.request"
+  | "askr.route.match"
+  | "askr.loader"
+  | "askr.action"
+  | "askr.api.operation"
+  | "askr.query.prefetch"
+  | "askr.ssr.render"
+  | "askr.vite.document";
+
+export interface ServerTelemetryFields {
+  requestId?: string;
+  traceId?: string;
+  route?: string;
+  action?: string;
+  operation?: string;
+  status?: number;
+  durationMs?: number;
+}
+
+export interface ServerTelemetry {
+  request<T>(fields: ServerTelemetryFields, work: () => T): T;
+  routeMatch<T>(fields: ServerTelemetryFields, work: () => T): T;
+  loader?<T>(fields: ServerTelemetryFields, work: () => T): T;
+  action<T>(fields: ServerTelemetryFields, work: () => T): T;
+  apiOperation<T>(fields: ServerTelemetryFields, work: () => T): T;
+  queryPrefetch?<T>(fields: ServerTelemetryFields, work: () => T): T;
+  ssrRender?<T>(fields: ServerTelemetryFields, work: () => T): T;
+  log(
+    level: "debug" | "info" | "warn" | "error",
+    event: ServerTelemetryOperation,
+    fields?: ServerTelemetryFields,
+  ): void;
+  traceId(): string | undefined;
+  extract?<Carrier>(carrier: Carrier, getter: {
+    keys(value: Carrier): string[];
+    get(value: Carrier, key: string): string | string[] | undefined;
+  }): unknown;
+  withContext?<T>(context: unknown, work: () => T): T;
+}
+
 export interface Problem {
   type: string;
   title: string;
@@ -77,6 +118,7 @@ export interface ServerContext<RouteParams extends Params = Params> {
   state: RequestState;
   auth: AuthContext;
   signal: AbortSignal;
+  telemetry?: ServerTelemetry;
   bind<T extends object = Record<string, unknown>>(): Promise<T>;
   json(value: JsonValue, init?: ResponseInit): Response;
   text(value: string, init?: ResponseInit): Response;
@@ -144,6 +186,7 @@ export interface ServerAppOptions {
   fallback?: Handler;
   websocket?: WebSocketAdapter;
   probes?: ProbeOptions;
+  telemetry?: ServerTelemetry;
 }
 
 export interface ServerApp {
