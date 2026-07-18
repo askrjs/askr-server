@@ -1,6 +1,6 @@
 {
   "name": "@askrjs/server",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Transport-neutral HTTP application core built on Web Request and Response",
   "keywords": [
     "askr",
@@ -83,7 +83,7 @@
     "test:checks": "npm run typecheck && npm run test:types",
     "test:types": "npm run build && tsc -p tests/types/tsconfig.json",
     "test:publint": "publint",
-    "pack:check": "npm pack --ignore-scripts --dry-run --json",
+    "pack:check": "node tests/package-artifacts.js",
     "check": "npm run lint && npm run typecheck && npm test && npm run build && npm run test:publint && npm run pack:check",
     "prepack": "npm run build",
     "prepublishOnly": "npm run check"

@@ -16,7 +16,7 @@ export default defineConfig({
     outDir: "dist",
     platform: "neutral",
     dts: true,
-    sourcemap: true,
+    sourcemap: "hidden",
     unbundle: true,
     deps: { neverBundle: [/^@askrjs\/(?:askr|auth|schema)(?:\/.*)?$/] },
   },
