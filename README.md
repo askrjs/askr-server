@@ -1,11 +1,40 @@
 # @askrjs/server
 
-`@askrjs/server` is a transport-neutral HTTP application layer built around
-Web `Request` and `Response`.
+Build HTTP applications with Web `Request` and `Response` objects. `@askrjs/server` owns routing,
+middleware, request binding, response helpers, OpenAPI contracts, probes, and server-side Askr
+integration without depending on a particular runtime.
 
-This `0.0.x` package is pre-release and is not currently published to npm.
-Install it from a local checkout or packed artifact while its public contract
-is being finalized.
+Use `@askrjs/node` to run an application on Node.js, or provide another adapter for a different
+runtime.
+
+## Install
+
+```sh
+npm install @askrjs/server
+```
+
+## Create an application
+
+```ts
+import { createServerApp, json } from "@askrjs/server";
+
+const app = createServerApp({
+  routes: [
+    {
+      method: "GET",
+      path: "/health",
+      handler: () => json({ status: "ok" }),
+    },
+  ],
+});
+
+const response = await app.fetch(new Request("https://example.test/health"));
+```
+
+An application is a fetch-shaped object, so it can be tested directly and passed to any compatible
+runtime adapter.
+
+## Routing
 
 Literal route paths infer their parameters for HTTP, WebSocket, and OpenAPI
 handlers. Named wildcards capture the remaining path:
