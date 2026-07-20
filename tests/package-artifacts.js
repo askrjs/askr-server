@@ -2,18 +2,37 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, normalize } from "node:path";
 
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const npmCli = process.env.npm_execpath;
+if (!npmCli) throw new Error("npm_execpath is unavailable; run this check through npm");
 const result = JSON.parse(
-  execFileSync(npm, ["pack", "--ignore-scripts", "--dry-run", "--json"], {
+  execFileSync(process.execPath, [npmCli, "pack", "--ignore-scripts", "--dry-run", "--json"], {
     encoding: "utf8",
   }),
 );
+
+const manifest = JSON.parse(readFileSync("package.json", "utf8"));
+const dependencies = Object.keys(manifest.dependencies ?? {}).sort();
+const allowedDependencies = ["@askrjs/auth", "@askrjs/schema"];
+if (JSON.stringify(dependencies) !== JSON.stringify(allowedDependencies)) {
+  throw new Error(`Unexpected production dependencies: ${dependencies.join(", ")}`);
+}
 
 if (result.length !== 1) {
   throw new Error(`Expected one packed artifact, received ${result.length}.`);
 }
 
 const packedFiles = new Set(result[0].files.map(({ path }) => normalize(path)));
+for (const file of packedFiles) {
+  if (
+    file !== normalize("LICENSE") &&
+    file !== normalize("README.md") &&
+    file !== normalize("package.json") &&
+    !file.startsWith(`${normalize("dist")}\\`) &&
+    !file.startsWith(`${normalize("dist")}/`)
+  ) {
+    throw new Error(`Unexpected packed file ${file}.`);
+  }
+}
 const sourceMappingPattern = /[#@]\s*sourceMappingURL=([^\s*]+)/gu;
 
 for (const file of result[0].files) {
