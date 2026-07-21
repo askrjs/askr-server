@@ -1,5 +1,8 @@
 # @askrjs/server
 
+[![CI](https://github.com/askrjs/askr-server/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/askrjs/askr-server/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/%40askrjs%2Fserver.svg)](https://www.npmjs.com/package/@askrjs/server)
+
 Build HTTP applications with Web `Request` and `Response` objects. `@askrjs/server` owns routing,
 middleware, request binding, response helpers, OpenAPI contracts, probes, and server-side Askr
 integration without depending on a particular runtime.
