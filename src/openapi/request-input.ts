@@ -1,6 +1,6 @@
 import type { Issue } from "@askrjs/schema";
 import type { ServerContext } from "../contracts";
-import { readRequestFormData, readRequestText } from "../body-limit";
+import { hasBufferedRequestBody, readRequestFormData, readRequestText } from "../body-limit";
 import type { ApiBodyInput, ApiInput, InferApiInput } from "./types";
 
 export type OperationInputResult<Input extends ApiInput> =
@@ -34,7 +34,7 @@ async function readBody(
   | { readonly success: true; readonly data: unknown }
   | { readonly success: false; readonly detail: string }
 > {
-  if (request.bodyUsed) {
+  if (request.bodyUsed && !hasBufferedRequestBody(request)) {
     return { success: false, detail: "Request body has already been consumed." };
   }
   if (request.body === null) return { success: true, data: {} };

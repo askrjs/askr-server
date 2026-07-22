@@ -370,12 +370,25 @@ token which `<ActionForm>` posts as `_csrf` and enhanced `action()` calls send
 as `x-askr-csrf-token`. Native success is a `303` to a same-origin matched
 route. Native validation failure rerenders at `422` with submitted values and
 field errors; enhanced requests receive the versioned JSON envelope and query
-prefix invalidations.
+prefix invalidations. Successful handlers may return ordered `cookies`
+instructions to set or clear cookies. Redirects are validated before cookies
+are attached. Enhanced redirects are returned in the envelope so the browser
+can perform full-document navigation after updating action state and
+invalidations.
+
+`ActionForm` is the native, server-driven primitive. `action().submit()` is the
+explicit client-driven primitive; forms are never intercepted automatically.
+Both paths use the same descriptor, handler, validation, cookie, and redirect
+contract. Configure a custom `csrf.sessionId` for pre-authentication flows,
+because the default requires an authenticated session. Protocol callbacks such
+as a SAML ACS remain protocol routes rather than page actions.
 
 Generic API routes can opt into `csrf({ secret })` and
 `rateLimit({ limit, windowMs })` middleware, which creates a private in-memory
 fixed-window store. Pass a custom `RateLimitStore` for shared or distributed
 state, or create one explicitly with `createMemoryRateLimitStore({ now })`.
+Form bodies read by `csrf()` remain available to `ctx.bind()` and declared
+OpenAPI body parsing through the bounded framework body cache.
 Rate-limit rejection emits
 `429`, `Retry-After`, and `RateLimit-Limit`, `RateLimit-Remaining`, and
 `RateLimit-Reset` headers.

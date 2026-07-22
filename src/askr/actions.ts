@@ -2,7 +2,7 @@ import type { AuthContext } from "@askrjs/auth";
 import type { ActionDescriptor } from "@askrjs/askr/actions";
 import type { RoutePolicy } from "@askrjs/askr/router";
 import type { Issue } from "@askrjs/schema";
-import type { Params, ServerContext } from "../contracts";
+import type { CookieOptions, Params, ServerContext } from "../contracts";
 import { createCsrfToken } from "../middleware/csrf";
 import { readRequestFormData, readRequestText } from "../body-limit";
 import {
@@ -15,9 +15,24 @@ import {
   type Submission,
 } from "./action-stages";
 
+export type ActionCookieInstruction =
+  | {
+      readonly name: string;
+      readonly value: string;
+      readonly clear?: false;
+      readonly options?: CookieOptions;
+    }
+  | {
+      readonly name: string;
+      readonly clear: true;
+      readonly value?: never;
+      readonly options?: CookieOptions;
+    };
+
 export interface ActionOutcome<Result = unknown> {
   readonly redirect?: string;
   readonly result?: Result;
+  readonly cookies?: readonly ActionCookieInstruction[];
 }
 
 export interface ActionHandlerContext {

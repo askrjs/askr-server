@@ -163,5 +163,87 @@ describe("page actions", () => {
     expect(await response.json()).toMatchObject({
       detail: "Action returned an invalid route redirect.",
     });
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("should apply ordered set and clear cookies to a native redirect", async () => {
+    const actions = defineServerActions(
+      { dependencies: { store: "store-1" }, csrf: false },
+      handleAction(save, () => ({
+        redirect: "/done?from=action#saved",
+        cookies: [
+          { name: "empty", value: "", options: { path: "/" } },
+          { name: "session", value: "new", options: { httpOnly: true } },
+          { name: "legacy", clear: true, options: { path: "/" } },
+        ],
+      })),
+    );
+    const response = await actionApp(actions, { redirect: true }).fetch(
+      new Request("http://example.test/items/42", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ _askr_action: save.id, name: "Ada" }),
+      }),
+    );
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/done?from=action#saved");
+    expect(response.headers.getSetCookie()).toEqual([
+      "empty=; Path=/",
+      "session=new; HttpOnly",
+      "legacy=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/",
+    ]);
+  });
+
+  it("should normalize an enhanced redirect before applying outcome cookies", async () => {
+    const actions = defineServerActions(
+      { dependencies: { store: "store-1" }, csrf: false },
+      handleAction(save, () => ({
+        result: { saved: true },
+        redirect: "../done?from=enhanced#saved",
+        cookies: [{ name: "session", value: "new" }],
+      })),
+    );
+    const response = await actionApp(actions, { redirect: true }).fetch(
+      new Request("http://example.test/items/42", {
+        method: "POST",
+        headers: {
+          accept: "application/vnd.askr.action+json;v=1",
+          "content-type": "application/json",
+          "x-askr-action": save.id,
+        },
+        body: JSON.stringify({ name: "Ada" }),
+      }),
+    );
+    expect(await response.json()).toEqual({
+      version: 1,
+      ok: true,
+      result: { saved: true },
+      invalidates: ["items"],
+      redirect: "/done?from=enhanced#saved",
+    });
+    expect(response.headers.getSetCookie()).toEqual(["session=new"]);
+  });
+
+  it("should reject an invalid enhanced redirect without applying cookies", async () => {
+    const actions = defineServerActions(
+      { dependencies: { store: "store-1" }, csrf: false },
+      handleAction(save, () => ({
+        redirect: "/missing",
+        cookies: [{ name: "session", value: "must-not-leak" }],
+      })),
+    );
+    const response = await actionApp(actions, { redirect: true }).fetch(
+      new Request("http://example.test/items/42", {
+        method: "POST",
+        headers: {
+          accept: "application/vnd.askr.action+json;v=1",
+          "content-type": "application/json",
+          "x-askr-action": save.id,
+        },
+        body: JSON.stringify({ name: "Ada" }),
+      }),
+    );
+    expect(response.status).toBe(500);
+    expect(response.headers.get("set-cookie")).toBeNull();
   });
 });

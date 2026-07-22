@@ -1,5 +1,5 @@
 import type { Params } from "./contracts";
-import { readRequestFormData, readRequestText } from "./body-limit";
+import { hasBufferedRequestBody, readRequestFormData, readRequestText } from "./body-limit";
 
 export class BindingError extends Error {
   readonly status = 400;
@@ -63,7 +63,8 @@ function canHaveBody(request: Request): boolean {
 }
 
 function ensureUnread(request: Request): void {
-  if (request.bodyUsed) throw new BindingError("Request body has already been consumed.");
+  if (request.bodyUsed && !hasBufferedRequestBody(request))
+    throw new BindingError("Request body has already been consumed.");
 }
 
 async function textBody(request: Request): Promise<string> {

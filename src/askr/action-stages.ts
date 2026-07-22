@@ -98,29 +98,35 @@ export function negotiateActionOutcome(
   outcome: ActionOutcome,
   enhanced: boolean,
 ): ActionExecution {
-  if (enhanced) {
-    return {
-      kind: "response",
-      response: context.json({
-        version: 1,
-        ok: true,
-        result: outcome.result,
-        invalidates: descriptor.invalidates,
-      }),
-    };
-  }
-  const location = new URL(
-    outcome.redirect ?? `${context.url.pathname}${context.url.search}`,
-    context.url,
-  );
-  if (location.origin !== context.url.origin || !options.allowsRedirect(location)) {
+  const location = outcome.redirect
+    ? new URL(outcome.redirect, context.url)
+    : enhanced
+      ? undefined
+      : new URL(`${context.url.pathname}${context.url.search}`, context.url);
+  if (
+    location &&
+    (location.origin !== context.url.origin || !options.allowsRedirect(location))
+  ) {
     return {
       kind: "response",
       response: context.problem(500, "Action returned an invalid route redirect."),
     };
   }
-  return {
-    kind: "response",
-    response: context.redirect(`${location.pathname}${location.search}${location.hash}`, 303),
-  };
+  let response = enhanced
+    ? context.json({
+        version: 1,
+        ok: true,
+        result: outcome.result,
+        invalidates: descriptor.invalidates,
+        ...(location
+          ? { redirect: `${location.pathname}${location.search}${location.hash}` }
+          : {}),
+      })
+    : context.redirect(`${location!.pathname}${location!.search}${location!.hash}`, 303);
+  for (const instruction of outcome.cookies ?? []) {
+    response = instruction.clear
+      ? context.clearCookie(response, instruction.name, instruction.options)
+      : context.setCookie(response, instruction.name, instruction.value, instruction.options);
+  }
+  return { kind: "response", response };
 }

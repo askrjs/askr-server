@@ -3,6 +3,10 @@ export const DEFAULT_MAX_REQUEST_BYTES = 1_048_576;
 const limits = new WeakMap<Request, number>();
 const bodies = new WeakMap<Request, Promise<Uint8Array>>();
 
+export function hasBufferedRequestBody(request: Request): boolean {
+  return bodies.has(request);
+}
+
 export class PayloadTooLargeError extends Error {
   readonly status = 413;
 
