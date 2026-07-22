@@ -103,10 +103,7 @@ export function negotiateActionOutcome(
     : enhanced
       ? undefined
       : new URL(`${context.url.pathname}${context.url.search}`, context.url);
-  if (
-    location &&
-    (location.origin !== context.url.origin || !options.allowsRedirect(location))
-  ) {
+  if (location && (location.origin !== context.url.origin || !options.allowsRedirect(location))) {
     return {
       kind: "response",
       response: context.problem(500, "Action returned an invalid route redirect."),
@@ -118,9 +115,7 @@ export function negotiateActionOutcome(
         ok: true,
         result: outcome.result,
         invalidates: descriptor.invalidates,
-        ...(location
-          ? { redirect: `${location.pathname}${location.search}${location.hash}` }
-          : {}),
+        ...(location ? { redirect: `${location.pathname}${location.search}${location.hash}` } : {}),
       })
     : context.redirect(`${location!.pathname}${location!.search}${location!.hash}`, 303);
   for (const instruction of outcome.cookies ?? []) {

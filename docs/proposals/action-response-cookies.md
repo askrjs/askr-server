@@ -41,8 +41,18 @@ immediately — it isn't a puma-auth-specific edge case.
 import type { CookieOptions } from "../http/responses.js"; // already exported today
 
 type ActionCookieInstruction =
-  | { readonly name: string; readonly value: string; readonly clear?: false; readonly options?: CookieOptions }
-  | { readonly name: string; readonly clear: true; readonly value?: never; readonly options?: CookieOptions };
+  | {
+      readonly name: string;
+      readonly value: string;
+      readonly clear?: false;
+      readonly options?: CookieOptions;
+    }
+  | {
+      readonly name: string;
+      readonly clear: true;
+      readonly value?: never;
+      readonly options?: CookieOptions;
+    };
 
 interface ActionOutcome<Result = unknown> {
   readonly redirect?: string;
@@ -78,7 +88,13 @@ handleAction<AppDependencies, InferSchema<typeof loginAction.input>>(
     const token = await deps.sessionJwtIssuer.issue({ subject: result.user.userId });
     return {
       redirect: safeReturnTo(input.returnTo),
-      cookies: [{ name: SESSION_COOKIE_NAME, value: token, options: { httpOnly: true, secure: true, sameSite: "lax", path: "/" } }],
+      cookies: [
+        {
+          name: SESSION_COOKIE_NAME,
+          value: token,
+          options: { httpOnly: true, secure: true, sameSite: "lax", path: "/" },
+        },
+      ],
     };
   },
 );
