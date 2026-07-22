@@ -379,9 +379,34 @@ invalidations.
 `ActionForm` is the native, server-driven primitive. `action().submit()` is the
 explicit client-driven primitive; forms are never intercepted automatically.
 Both paths use the same descriptor, handler, validation, cookie, and redirect
-contract. Configure a custom `csrf.sessionId` for pre-authentication flows,
-because the default requires an authenticated session. Protocol callbacks such
-as a SAML ACS remain protocol routes rather than page actions.
+contract. The default `csrf.sessionId` is `context.auth.session?.id`. Therefore,
+an anonymous page receives no CSRF token and any action submission from it is
+rejected with `403 A session is required for this action.`
+
+Login, signup, and password-reset pages should establish an opaque, random
+pre-authentication session in middleware before rendering, persist it in a
+browser cookie, and expose its stable identifier through request state:
+
+```ts
+const actions = defineServerActions(
+  {
+    dependencies,
+    csrf: {
+      secret: process.env.ACTION_CSRF_SECRET,
+      sessionId: (context) =>
+        typeof context.state.preAuthSessionId === "string"
+          ? context.state.preAuthSessionId
+          : context.auth.session?.id,
+    },
+  },
+  handleAction(login, loginHandler),
+);
+```
+
+The resolver only selects an identity; it does not create or persist the guest
+session. Do not use a fixed global value, and do not disable CSRF merely because
+a form is pre-authentication. Protocol callbacks such as a SAML ACS remain
+protocol routes rather than page actions.
 
 Generic API routes can opt into `csrf({ secret })` and
 `rateLimit({ limit, windowMs })` middleware, which creates a private in-memory

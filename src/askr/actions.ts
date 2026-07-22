@@ -14,6 +14,9 @@ import {
   type RegisteredAction,
   type Submission,
 } from "./action-stages";
+import type { ActionRegistryOptions } from "./action-options";
+
+export type { ActionRegistryOptions } from "./action-options";
 
 export type ActionCookieInstruction =
   | {
@@ -53,19 +56,6 @@ export type ActionHandler<
   input: Input,
   dependencies: Dependencies,
 ) => ActionOutcome<Result> | Promise<ActionOutcome<Result>>;
-
-export interface ActionRegistryOptions {
-  /** Page actions are protected by default. Set false only for an intentional non-session flow. */
-  readonly csrf?:
-    | false
-    | {
-        readonly secret?: string;
-        readonly sessionId?: (context: ServerContext) => string | undefined;
-        readonly header?: string;
-        readonly formField?: string;
-      };
-  readonly randomSecret?: () => string;
-}
 
 export interface ActionExecutionOptions {
   readonly authorized: readonly ActionDescriptor[];

@@ -13,6 +13,13 @@ const user: AuthContext = {
   tenant: null,
 };
 
+const anonymous: AuthContext = {
+  authenticated: false,
+  principal: null,
+  session: null,
+  tenant: null,
+};
+
 const save = Object.freeze({
   id: "save-item",
   input: schema.object({ name: schema.string({ minLength: 2 }) }),
@@ -21,7 +28,7 @@ const save = Object.freeze({
 
 function actionApp(
   actionRegistry: ActionRegistry<{ store: string }>,
-  options: { redirect?: boolean } = {},
+  options: { redirect?: boolean; auth?: AuthContext } = {},
 ) {
   const registry = createRouteRegistry(() => {
     route("/items/{id}", () => "item", {
@@ -32,7 +39,7 @@ function actionApp(
     route("/other", () => "other");
   });
   return createServerApp({
-    auth: { resolve: async () => user },
+    auth: { resolve: async () => options.auth ?? user },
     fallback: createAskrPageHandler({ registry, actions: actionRegistry }),
   });
 }
@@ -144,6 +151,83 @@ describe("page actions", () => {
     );
     expect(accepted.status).toBe(303);
     expect(accepted.headers.get("location")).toBe("/items/42");
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("should require an explicit pre-authentication session for anonymous actions", async () => {
+    const handler = vi.fn(() => ({ result: true }));
+    const actions = defineServerActions(
+      { dependencies: { store: "store-1" }, csrf: { secret: "test-secret" } },
+      handleAction(save, handler),
+    );
+    const app = actionApp(actions, { auth: anonymous });
+    const page = await app.fetch(new Request("http://example.test/items/42"));
+    const pageHtml = await page.text();
+
+    expect(pageHtml).not.toContain('"framework":{"csrf":');
+
+    const rejected = await app.fetch(
+      new Request("http://example.test/items/42", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ _askr_action: save.id, name: "Ada" }),
+      }),
+    );
+
+    expect(rejected.status).toBe(403);
+    expect(await rejected.json()).toMatchObject({
+      detail: "A session is required for this action.",
+    });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("should support anonymous actions through a custom pre-authentication session", async () => {
+    const handler = vi.fn(() => ({ result: true }));
+    const actions = defineServerActions(
+      {
+        dependencies: { store: "store-1" },
+        csrf: {
+          secret: "test-secret",
+          sessionId: (context) => context.state.preAuthSessionId as string | undefined,
+        },
+      },
+      handleAction(save, handler),
+    );
+    const registry = createRouteRegistry(() => {
+      route("/items/{id}", () => "item", {
+        actions: [save],
+        loader: () => "loader-value",
+      });
+    });
+    const app = createServerApp({
+      auth: { resolve: async () => anonymous },
+      middleware: [
+        (context, next) => {
+          context.state.preAuthSessionId = "guest-session-1";
+          return next();
+        },
+      ],
+      fallback: createAskrPageHandler({ registry, actions }),
+    });
+    const page = await app.fetch(new Request("http://example.test/items/42"));
+    const pageHtml = await page.text();
+    const token = /"csrf":"([^"]+)"/.exec(pageHtml)?.[1];
+
+    expect(token).toBeTruthy();
+
+    const accepted = await app.fetch(
+      new Request("http://example.test/items/42", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          _askr_action: save.id,
+          _csrf: token!,
+          name: "Ada",
+        }),
+      }),
+    );
+
+    expect(accepted.status).toBe(303);
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
