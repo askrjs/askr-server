@@ -158,6 +158,7 @@ export interface RouteState<Dependencies> {
   bodies: BodyDefinition[];
   responses: ResponseDefinition[];
   middleware: Middleware[];
+  maxRequestBytes?: number;
   access?: AccessDefinition;
   deprecated?: boolean;
   externalDocs?: ExternalDocumentationObject;

@@ -1,7 +1,12 @@
 import type { AuthContext } from "@askrjs/auth";
 import { describe, expect, it, vi } from "vitest";
 import { createServerApp } from "../src/application";
-import { createCsrfToken, csrf, rateLimit } from "../src/middleware/index";
+import {
+  createCsrfToken,
+  createMemoryRateLimitStore,
+  csrf,
+  rateLimit,
+} from "../src/middleware/index";
 
 const user: AuthContext = {
   authenticated: true,
@@ -11,6 +16,26 @@ const user: AuthContext = {
 };
 
 describe("request protection", () => {
+  it("should rate limit with a private memory store when no store is supplied", async () => {
+    const app = createServerApp({
+      middleware: [rateLimit({ limit: 1, windowMs: 1_000 })],
+      routes: [{ path: "/", handler: () => new Response("ok") }],
+    });
+    expect((await app.fetch(new Request("http://example.test/"))).status).toBe(200);
+    const rejected = await app.fetch(new Request("http://example.test/"));
+    expect(rejected.status).toBe(429);
+    expect(rejected.headers.get("RateLimit-Remaining")).toBe("0");
+  });
+
+  it("should reset memory rate limit windows with an injected clock", async () => {
+    let now = 10;
+    const store = createMemoryRateLimitStore({ now: () => now });
+    expect((await store.consume("key", 1, 100)).allowed).toBe(true);
+    expect((await store.consume("key", 1, 100)).allowed).toBe(false);
+    now = 110;
+    expect((await store.consume("key", 1, 100)).allowed).toBe(true);
+  });
+
   it("should accept a session-bound HMAC token from a native form", async () => {
     const secret = "test-secret";
     const token = await createCsrfToken(secret, "session-1");

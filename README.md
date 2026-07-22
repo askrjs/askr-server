@@ -122,6 +122,13 @@ also contribute no body values and are left unread. Invalid JSON, a non-object
 JSON root, malformed multipart data, or an already-consumed supported body
 produces a `400 application/problem+json` response.
 
+Framework-owned parsing is bounded to 1 MiB by default. Set
+`createServerApp({ maxRequestBytes })` for the application or
+`{ maxRequestBytes }` on a route; the route value wins. OpenAPI routes expose
+the same override as `.maxRequestBytes(bytes)`. Oversized declared or streamed
+bodies return an RFC 7807 `413 Payload Too Large`. Direct reads from
+`ctx.request` remain application-owned.
+
 Binding is intentionally shallow. It does not parse dotted keys, deep-merge
 objects, coerce strings into numbers or booleans, or validate a schema. The
 generic argument supplies only a TypeScript view of the result. Use explicit
@@ -142,6 +149,8 @@ const router = createRouter();
 
 router.ws("/rooms/{room}", (socket, ctx) => {
   socket.send(`joined:${ctx.params.room}`);
+  const stop = socket.onMessage((message) => socket.send(message));
+  socket.onClose(() => stop());
 });
 
 const app = createServerApp({
@@ -363,8 +372,11 @@ route. Native validation failure rerenders at `422` with submitted values and
 field errors; enhanced requests receive the versioned JSON envelope and query
 prefix invalidations.
 
-Generic API routes can opt into `csrf({ secret })` and store-backed
-`rateLimit({ store, limit, windowMs })` middleware. Rate-limit rejection emits
+Generic API routes can opt into `csrf({ secret })` and
+`rateLimit({ limit, windowMs })` middleware, which creates a private in-memory
+fixed-window store. Pass a custom `RateLimitStore` for shared or distributed
+state, or create one explicitly with `createMemoryRateLimitStore({ now })`.
+Rate-limit rejection emits
 `429`, `Retry-After`, and `RateLimit-Limit`, `RateLimit-Remaining`, and
 `RateLimit-Reset` headers.
 

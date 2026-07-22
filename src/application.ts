@@ -3,6 +3,13 @@ import { BindingError } from "./binding";
 import { anonymousAuthContext, createServerContext } from "./context";
 import { createTerminal, runGlobalMiddleware } from "./dispatch";
 import { problem } from "./http/responses";
+import {
+  configureRequestLimit,
+  DEFAULT_MAX_REQUEST_BYTES,
+  PayloadTooLargeError,
+  rejectOversizedContentLength,
+  validateMaxRequestBytes,
+} from "./body-limit";
 import { createMatcher, MalformedPathParameterError } from "./router/matcher";
 
 function isRouter(value: Router | ServerAppOptions): value is Router {
@@ -16,12 +23,24 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
   const routes = options.routes ?? options.router?.routes ?? [];
   const middleware = [...(options.router?.middleware ?? []), ...(options.middleware ?? [])];
   const matcher = createMatcher(routes);
+  const applicationMaximum = validateMaxRequestBytes(
+    options.maxRequestBytes ?? DEFAULT_MAX_REQUEST_BYTES,
+  );
+  for (const route of routes)
+    if (route.maxRequestBytes !== undefined)
+      validateMaxRequestBytes(route.maxRequestBytes, "ApiRouteOptions.maxRequestBytes");
 
   return {
-    async fetch(request): Promise<Response> {
+    async fetch(request, dispatchOptions): Promise<Response> {
       const requestId = request.headers.get("x-request-id") ?? undefined;
       const execute = async (): Promise<Response> => {
-        const context = createServerContext(request, anonymousAuthContext(), options);
+        configureRequestLimit(request, applicationMaximum);
+        const context = createServerContext(
+          request,
+          anonymousAuthContext(),
+          options,
+          dispatchOptions?.websocket,
+        );
         const traceId = options.telemetry?.traceId();
         if (requestId) context.state.requestId = requestId;
         if (traceId) context.state.traceId = traceId;
@@ -34,6 +53,9 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
               )
             : match();
           context.params = found.match?.params ?? {};
+          const maximum = found.match?.route.maxRequestBytes ?? applicationMaximum;
+          configureRequestLimit(request, maximum);
+          rejectOversizedContentLength(request, maximum);
           if (options.auth) {
             context.auth = await options.auth.resolve(request, { signal: request.signal });
           }
@@ -45,7 +67,9 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
           return response;
         } catch (error) {
           let response: Response;
-          if (error instanceof MalformedPathParameterError) {
+          if (error instanceof PayloadTooLargeError) {
+            response = problem(413, error.message, { title: "Payload Too Large" });
+          } else if (error instanceof MalformedPathParameterError) {
             response = problem(400, error.message);
           } else if (error instanceof BindingError) {
             response = problem(error.status, error.message, {

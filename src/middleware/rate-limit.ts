@@ -14,11 +14,44 @@ export interface RateLimitStore {
   }>;
 }
 export interface RateLimitOptions {
-  readonly store: RateLimitStore;
+  readonly store?: RateLimitStore;
   readonly limit: number;
   readonly windowMs: number;
   readonly key?: (context: Parameters<Middleware>[0]) => string;
   readonly now?: () => number;
+}
+
+export interface MemoryRateLimitStoreOptions {
+  readonly now?: () => number;
+}
+
+export function createMemoryRateLimitStore(
+  options: MemoryRateLimitStoreOptions = {},
+): RateLimitStore {
+  const entries = new Map<string, { count: number; reset: number }>();
+  const now = options.now ?? Date.now;
+  let operations = 0;
+  return {
+    async consume(key, limit, windowMs) {
+      const current = now();
+      let entry = entries.get(key);
+      if (!entry || entry.reset <= current) {
+        entry = { count: 0, reset: current + windowMs };
+        entries.set(key, entry);
+      }
+      entry.count += 1;
+      if (++operations % 64 === 0) {
+        for (const [candidate, value] of entries) {
+          if (value.reset <= current && candidate !== key) entries.delete(candidate);
+        }
+      }
+      return {
+        allowed: entry.count <= limit,
+        remaining: Math.max(0, limit - entry.count),
+        reset: entry.reset,
+      };
+    },
+  };
 }
 
 export function rateLimit(options: RateLimitOptions): Middleware {
@@ -28,12 +61,13 @@ export function rateLimit(options: RateLimitOptions): Middleware {
   if (!Number.isFinite(options.windowMs) || options.windowMs <= 0) {
     throw new Error("rateLimit requires a positive windowMs.");
   }
+  const store = options.store ?? createMemoryRateLimitStore({ now: options.now });
   return async (context, next) => {
     const key =
       options.key?.(context) ??
       context.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim() ??
       "anonymous";
-    const result = await options.store.consume(key, options.limit, options.windowMs);
+    const result = await store.consume(key, options.limit, options.windowMs);
     const now = options.now?.() ?? Date.now();
     const resetSeconds = Math.max(0, Math.ceil((result.reset - now) / 1000));
     const headers = new Headers({

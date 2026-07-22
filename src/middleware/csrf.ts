@@ -1,4 +1,5 @@
 import type { Middleware } from "../contracts";
+import { readRequestFormData } from "../body-limit";
 
 export interface CsrfOptions {
   readonly secret: string;
@@ -75,7 +76,7 @@ export function csrf(options: CsrfOptions): Middleware {
         context.request.headers.get("content-type") ?? "",
       )
     ) {
-      const values = await context.request.clone().formData();
+      const values = await readRequestFormData(context.request);
       const value = values.get(field);
       supplied = typeof value === "string" ? value : null;
     }

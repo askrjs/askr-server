@@ -105,6 +105,15 @@ export interface ChallengeOptions {
 export interface WebSocketLike {
   send(data: string | ArrayBufferLike | ArrayBufferView): void;
   close(code?: number, reason?: string): void;
+  onMessage(listener: (data: string | Uint8Array) => void): () => void;
+  onClose(listener: (event: WebSocketCloseEvent) => void): () => void;
+  onError(listener: (error: unknown) => void): () => void;
+}
+
+export interface WebSocketCloseEvent {
+  readonly code: number;
+  readonly reason: string;
+  readonly wasClean: boolean;
 }
 
 export type WebSocketHandler<RouteParams extends Params = Params> = {
@@ -176,6 +185,7 @@ export type AccessDeniedHandler = (
 export interface ApiRouteOptions<RouteParams extends Params = Params> {
   auth?: AuthRequirement;
   middleware?: readonly Middleware<RouteParams>[];
+  maxRequestBytes?: number;
 }
 
 export interface ApiRoute<
@@ -205,8 +215,13 @@ export interface ServerAppOptions {
   websocket?: WebSocketAdapter;
   probes?: ProbeOptions;
   telemetry?: ServerTelemetry;
+  maxRequestBytes?: number;
+}
+
+export interface ServerDispatchOptions {
+  websocket?: WebSocketAdapter;
 }
 
 export interface ServerApp {
-  fetch(request: Request): Promise<Response>;
+  fetch(request: Request, dispatchOptions?: ServerDispatchOptions): Promise<Response>;
 }

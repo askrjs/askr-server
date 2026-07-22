@@ -38,6 +38,7 @@ export interface RouteBuilder<Dependencies> {
   deprecated(value?: boolean): RouteBuilder<Dependencies>;
   externalDocs(url: string, description?: string): RouteBuilder<Dependencies>;
   use(...middleware: Middleware[]): RouteBuilder<Dependencies>;
+  maxRequestBytes(bytes: number): RouteBuilder<Dependencies>;
   access(requirement: AuthRequirement, security: SecurityRequirement): RouteBuilder<Dependencies>;
   pathParam(name: string, value: Schema, options?: ParameterOptions): RouteBuilder<Dependencies>;
   queryParam(name: string, value: Schema, options?: ParameterOptions): RouteBuilder<Dependencies>;

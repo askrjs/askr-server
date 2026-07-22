@@ -8,5 +8,5 @@ export { securityHeaders } from "./security-headers";
 export { trace } from "./trace";
 export { createCsrfToken, csrf, verifyCsrfToken } from "./csrf";
 export type { CsrfOptions } from "./csrf";
-export { rateLimit } from "./rate-limit";
-export type { RateLimitOptions, RateLimitStore } from "./rate-limit";
+export { createMemoryRateLimitStore, rateLimit } from "./rate-limit";
+export type { MemoryRateLimitStoreOptions, RateLimitOptions, RateLimitStore } from "./rate-limit";

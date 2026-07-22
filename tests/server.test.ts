@@ -485,6 +485,17 @@ describe("one auth context dispatch", () => {
     expect(upgraded).toBe(false);
   });
 
+  it("should prefer a dispatch WebSocket adapter over the application adapter", async () => {
+    const app = createServerApp({
+      websocket: { upgrade: async () => new Response("application") },
+      routes: defineRoutes((route) => route.ws("/socket", () => undefined)),
+    });
+    const response = await app.fetch(new Request("http://example.test/socket"), {
+      websocket: { upgrade: async () => new Response("dispatch") },
+    });
+    expect(await response.text()).toBe("dispatch");
+  });
+
   it("should expose the identical AuthContext object to middleware and handlers", async () => {
     let observed: AuthContext | undefined;
     const app = createServerApp({

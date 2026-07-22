@@ -163,6 +163,10 @@ export function createRouteBuilder<Dependencies>(
       state.middleware.push(...values);
       return builder;
     },
+    maxRequestBytes: (bytes) => {
+      state.maxRequestBytes = bytes;
+      return builder;
+    },
     access: (requirement, security) => {
       state.access = { requirement, security };
       return builder;

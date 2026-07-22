@@ -1,5 +1,6 @@
 import type { Issue } from "@askrjs/schema";
 import type { ServerContext } from "../contracts";
+import { readRequestFormData, readRequestText } from "../body-limit";
 import type { ApiBodyInput, ApiInput, InferApiInput } from "./types";
 
 export type OperationInputResult<Input extends ApiInput> =
@@ -48,7 +49,7 @@ async function readBody(
   }
   try {
     if (type === "application/json" || type?.endsWith("+json")) {
-      const source = await request.text();
+      const source = await readRequestText(request);
       if (!source.trim()) return { success: false, detail: "Request body contains empty JSON." };
       try {
         return { success: true, data: JSON.parse(source) as unknown };
@@ -57,10 +58,13 @@ async function readBody(
       }
     }
     if (type === "application/x-www-form-urlencoded") {
-      return { success: true, data: entries(new URLSearchParams(await request.text()).entries()) };
+      return {
+        success: true,
+        data: entries(new URLSearchParams(await readRequestText(request)).entries()),
+      };
     }
     if (type === "multipart/form-data") {
-      return { success: true, data: entries((await request.formData()).entries()) };
+      return { success: true, data: entries((await readRequestFormData(request)).entries()) };
     }
     return {
       success: false,
@@ -68,7 +72,9 @@ async function readBody(
         ? `Content type ${type} is not supported for declared request bodies.`
         : "A content type is required for a declared request body.",
     };
-  } catch {
+  } catch (error) {
+    if (error && typeof error === "object" && "status" in error && error.status === 413)
+      throw error;
     return { success: false, detail: "Request body could not be read." };
   }
 }

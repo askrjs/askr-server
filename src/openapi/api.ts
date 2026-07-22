@@ -21,7 +21,6 @@ import type {
   RouteState,
   Schema,
 } from "./types";
-
 const methods = ["get", "post", "put", "patch", "delete", "options", "head", "trace"] as const;
 function joinPath(prefix: string, path: string): string {
   const left = prefix === "/" ? "" : prefix.replace(/\/$/, "");
@@ -287,6 +286,7 @@ export function createApi<Dependencies = undefined>(
           {
             auth: route.access?.requirement,
             middleware: route.middleware,
+            maxRequestBytes: route.maxRequestBytes,
           },
         );
       }

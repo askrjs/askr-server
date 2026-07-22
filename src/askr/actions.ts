@@ -4,6 +4,7 @@ import type { RoutePolicy } from "@askrjs/askr/router";
 import type { Issue } from "@askrjs/schema";
 import type { Params, ServerContext } from "../contracts";
 import { createCsrfToken } from "../middleware/csrf";
+import { readRequestFormData, readRequestText } from "../body-limit";
 import {
   authorizedAction,
   csrfFailure,
@@ -139,7 +140,7 @@ async function readSubmission(
   const csrfHeaderValue = context.headers.get(csrfHeader) ?? undefined;
   try {
     if (type === "application/json" || type?.endsWith("+json")) {
-      const source = await context.request.clone().text();
+      const source = await readRequestText(context.request);
       if (!source.trim())
         return {
           success: false,
@@ -161,7 +162,7 @@ async function readSubmission(
     }
     if (type === "application/x-www-form-urlencoded" || type === "multipart/form-data") {
       const values: Record<string, unknown> = {};
-      for (const [key, value] of (await context.request.clone().formData()).entries()) {
+      for (const [key, value] of (await readRequestFormData(context.request)).entries()) {
         appendValue(values, key, value);
       }
       const id =
@@ -176,7 +177,9 @@ async function readSubmission(
       success: false,
       response: context.badRequest("Action request has an unsupported content type."),
     };
-  } catch {
+  } catch (error) {
+    if (error && typeof error === "object" && "status" in error && error.status === 413)
+      throw error;
     return {
       success: false,
       response: context.badRequest("Action request body could not be read."),

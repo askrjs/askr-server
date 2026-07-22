@@ -11,6 +11,31 @@ function bindingApp(path = "/items/{id}") {
 }
 
 describe("model binding", () => {
+  it("should reject multibyte bodies above the route byte limit", async () => {
+    const response = await createServerApp({
+      maxRequestBytes: 100,
+      routes: [
+        {
+          path: "/",
+          method: "POST",
+          maxRequestBytes: 8,
+          handler: async (ctx) => ctx.json(await ctx.bind()),
+        },
+      ],
+    }).fetch(
+      new Request("http://example.test/", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ value: "é" }),
+      }),
+    );
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toMatchObject({
+      status: 413,
+      title: "Payload Too Large",
+    });
+  });
+
   it("should merge body then query then route parameters and exclude headers", async () => {
     const response = await bindingApp("/items/{shared}").fetch(
       new Request("http://example.test/items/route?shared=query&query-only=yes", {

@@ -1,5 +1,10 @@
 import type { AuthContext } from "@askrjs/auth";
-import type { ServerContext, WebSocketHandler, ServerAppOptions } from "./contracts";
+import type {
+  ServerContext,
+  WebSocketHandler,
+  ServerAppOptions,
+  WebSocketAdapter,
+} from "./contracts";
 import { bind } from "./binding";
 import * as responses from "./http/responses";
 import { createEventStream } from "./http/event-stream";
@@ -12,13 +17,14 @@ export function createServerContext(
   request: Request,
   auth: AuthContext,
   options: Pick<ServerAppOptions, "telemetry" | "websocket">,
+  dispatchWebsocket?: WebSocketAdapter,
 ): ServerContext {
   const url = new URL(request.url);
   let bound: Promise<Record<string, unknown>> | undefined;
   let context: ServerContext;
   const upgrade = (handler: WebSocketHandler) =>
-    options.websocket
-      ? options.websocket.upgrade(request, handler, context)
+    (dispatchWebsocket ?? options.websocket)
+      ? (dispatchWebsocket ?? options.websocket)!.upgrade(request, handler, context)
       : responses.problem(501, "This server does not provide a WebSocket upgrade adapter.");
   context = {
     request,

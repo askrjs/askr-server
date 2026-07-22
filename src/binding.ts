@@ -1,4 +1,5 @@
 import type { Params } from "./contracts";
+import { readRequestFormData, readRequestText } from "./body-limit";
 
 export class BindingError extends Error {
   readonly status = 400;
@@ -68,8 +69,10 @@ function ensureUnread(request: Request): void {
 async function textBody(request: Request): Promise<string> {
   ensureUnread(request);
   try {
-    return await request.text();
+    return await readRequestText(request);
   } catch (error) {
+    if (error && typeof error === "object" && "status" in error && error.status === 413)
+      throw error;
     throw new BindingError("Request body could not be read.", undefined, { cause: error });
   }
 }
@@ -99,11 +102,13 @@ async function multipartBody(
 ): Promise<Record<string, FormDataEntryValue | FormDataEntryValue[]>> {
   ensureUnread(request);
   try {
-    return collectValues(await request.formData()) as Record<
+    return collectValues(await readRequestFormData(request)) as Record<
       string,
       FormDataEntryValue | FormDataEntryValue[]
     >;
   } catch (error) {
+    if (error && typeof error === "object" && "status" in error && error.status === 413)
+      throw error;
     throw new BindingError("Request body contains invalid multipart form data.", undefined, {
       cause: error,
     });

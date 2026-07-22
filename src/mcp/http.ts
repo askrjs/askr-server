@@ -1,4 +1,5 @@
 import type { Router, ServerContext } from "../contracts";
+import { PayloadTooLargeError, readRequestText } from "../body-limit";
 import { createEventStream, type EventStream } from "../http/event-stream";
 import type { McpRequestEnvironment, McpServer, McpSessionStore } from "./types";
 
@@ -99,11 +100,11 @@ export function registerMcpRoutes<Dependencies>(
       return context.error(413, "MCP request is too large.");
     let message: unknown;
     try {
-      const text = await context.request.text();
-      if (new TextEncoder().encode(text).byteLength > maximum)
-        return context.error(413, "MCP request is too large.");
+      const text = await readRequestText(context.request, maximum);
       message = JSON.parse(text);
-    } catch {
+    } catch (error) {
+      if (error instanceof PayloadTooLargeError)
+        return context.problem(413, "MCP request is too large.", { title: "Payload Too Large" });
       return json(
         { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } },
         400,
