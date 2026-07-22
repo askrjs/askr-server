@@ -54,6 +54,7 @@ export interface AskrAppOptions<Dependencies, P extends Principal = Principal> {
   readonly probes?: ProbeOptions;
   readonly telemetry?: ServerTelemetry;
   readonly onError?: ServerAppOptions["onError"];
+  readonly onAccessDenied?: ServerAppOptions["onAccessDenied"];
   readonly close?: (dependencies: Dependencies) => void | Promise<void>;
 }
 
@@ -97,6 +98,7 @@ export function createAskrApp<Dependencies, P extends Principal = Principal>(
     probes: options.probes,
     telemetry: options.telemetry,
     onError: options.onError,
+    onAccessDenied: options.onAccessDenied,
     fallback: createAskrPageHandler({
       registry: options.pages,
       auth: options.auth?.pages,

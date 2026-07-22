@@ -136,6 +136,7 @@ export function createRouteBuilder<Dependencies>(
   builder = {
     operationId: (value) => {
       state.operationId = value;
+      state.operationIdExplicit = true;
       return builder;
     },
     summary: (value) => {

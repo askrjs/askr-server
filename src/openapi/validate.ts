@@ -54,7 +54,7 @@ export function validateApi<Dependencies>(
   options: ApiOptions,
 ): void {
   const errors: string[] = [];
-  const operationIds = new Set<string>();
+  const operationIds = new Map<string, string>();
   const routeKeys = new Set<string>();
   const securitySchemes = new Set(Object.keys(options.securitySchemes ?? {}));
 
@@ -68,14 +68,24 @@ export function validateApi<Dependencies>(
     const label = `${route.method} ${route.path}`;
     errors.push(...route.errors.map((error) => `${label}: ${error}`));
     if (route.path.includes("*")) errors.push(`${label}: wildcard paths are not supported`);
+    if (options.metadata === "authored" && !route.operationIdExplicit)
+      errors.push(`${label}: operationId is required`);
     if (!route.operationId) errors.push(`${label}: operationId is required`);
     else if (!operationId.test(route.operationId))
       errors.push(`${label}: invalid operationId ${route.operationId}`);
     else if (operationIds.has(route.operationId))
-      errors.push(`${label}: duplicate operationId ${route.operationId}`);
-    else operationIds.add(route.operationId);
-    if (!route.summary?.trim()) errors.push(`${label}: summary is required`);
-    if (route.responses.length === 0) errors.push(`${label}: at least one response is required`);
+      errors.push(
+        `duplicate operationId ${route.operationId} collides between ${operationIds.get(route.operationId)} and ${label}`,
+      );
+    else operationIds.set(route.operationId, label);
+    if (route.summary !== undefined && !route.summary.trim())
+      errors.push(`${label}: summary must not be blank`);
+    else if (options.metadata === "authored" && route.summary === undefined)
+      errors.push(`${label}: summary is required`);
+    if (options.metadata === "authored" && !route.responses.some((response) => response.explicit))
+      errors.push(
+        `${label}: at least one response is required (automatic access responses do not count)`,
+      );
     const routeKey = `${route.method.toLowerCase()} ${route.path}`;
     if (routeKeys.has(routeKey)) errors.push(`${label}: duplicate method/path pair`);
     routeKeys.add(routeKey);

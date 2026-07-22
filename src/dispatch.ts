@@ -1,6 +1,7 @@
 import type { AuthDecision } from "@askrjs/auth";
 import type {
   ApiRoute,
+  AccessDeniedHandler,
   Handler,
   Middleware,
   ProbeHandler,
@@ -26,16 +27,25 @@ async function runMiddleware(
   return dispatch(0);
 }
 
-function denial(decision: AuthDecision): Response | undefined {
+async function denial(
+  decision: AuthDecision,
+  context: ServerContext,
+  onAccessDenied?: AccessDeniedHandler,
+): Promise<Response | undefined> {
   if (decision.allowed) return undefined;
+  if (onAccessDenied) return onAccessDenied(decision, context);
   return decision.reason === "unauthenticated"
     ? challenge()
     : forbidden(decision.reason === "already_authenticated" ? "Already authenticated" : undefined);
 }
 
-async function executeRoute(route: ApiRoute, context: ServerContext): Promise<Response> {
+async function executeRoute(
+  route: ApiRoute,
+  context: ServerContext,
+  onAccessDenied?: AccessDeniedHandler,
+): Promise<Response> {
   if (route.auth) {
-    const response = denial(await route.auth(context.auth));
+    const response = await denial(await route.auth(context.auth), context, onAccessDenied);
     if (response) return response;
   }
   return runMiddleware(route.middleware ?? [], context, async () =>
@@ -83,12 +93,12 @@ function withoutHeadBody(response: Response, request: Request): Response {
 
 export function createTerminal(
   found: MatchResult,
-  options: { probes?: ProbeOptions; fallback?: Handler },
+  options: { probes?: ProbeOptions; fallback?: Handler; onAccessDenied?: AccessDeniedHandler },
 ): Handler {
   return async (context) => {
     let response: Response;
     if (found.match) {
-      response = await executeRoute(found.match.route, context);
+      response = await executeRoute(found.match.route, context, options.onAccessDenied);
     } else if (found.allowed.length) {
       response =
         context.request.method === "OPTIONS"

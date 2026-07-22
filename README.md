@@ -193,6 +193,26 @@ router.post("/login", async (ctx) => {
 `challenge()` emits `WWW-Authenticate`. `setCookie()` and `clearCookie()` only
 modify a response; they do not validate credentials or own session storage.
 
+Applications can map every API access denial into their own complete response
+envelope. The custom handler owns all headers, including authentication
+challenges, and runs before route middleware and handlers:
+
+```ts
+const app = createServerApp({
+  router,
+  onAccessDenied(decision, ctx) {
+    return ctx.problem(decision.reason === "unauthenticated" ? 401 : 403, "Access denied", {
+      extensions: { code: decision.reason, violations: [] },
+    });
+  },
+});
+```
+
+This produces an RFC 7807-compatible `application/problem+json` response while
+retaining the application-owned `code` and `violations` extensions. Without a
+custom handler, unauthenticated denials remain `401` with
+`WWW-Authenticate: Bearer`; other denials remain `403`.
+
 ## Kubernetes-style probes
 
 The server exposes these probe paths automatically:
@@ -259,12 +279,31 @@ const router = api.createRouter(createDependencies());
 const document = api.toOpenApiDocument();
 ```
 
-Finalization rejects incomplete or ambiguous contracts, including missing or
-duplicate operation IDs, undocumented responses, mismatched path parameters,
-wildcards, and unresolved schema or security references. Document generation
-does not execute handlers or construct dependencies. The returned OpenAPI 3.1.2
-object is deterministic and deeply frozen; YAML serialization belongs to the
-CLI or another outer adapter.
+The default `metadata: "inferred"` mode is a registration and migration
+baseline. Missing operation IDs are derived from the method and path (`GET
+/users/{id}` becomes `getUsersById`, and `/` becomes `getRoot`), an unauthored
+summary is omitted, and a route without an explicit response receives
+`default: { description: "Undocumented response" }`. Explicit metadata always
+wins, and derived-ID collisions fail with both conflicting routes.
+
+Finished public APIs should continue to author operation IDs, summaries, and
+responses explicitly, as above. CI can enforce that contract with authored
+mode:
+
+```ts
+const api = createApi({
+  info: { title: "Users API", version: "1.0.0" },
+  metadata: "authored",
+});
+```
+
+Authored mode requires all three metadata elements; automatic `401` and `403`
+access responses do not count as an authored response. Both modes reject blank
+summaries, invalid or duplicate operation IDs, invalid responses, mismatched
+path parameters, wildcards, and unresolved schema or security references.
+Document generation does not execute handlers or construct dependencies. The
+returned OpenAPI 3.1.2 object is deterministic and deeply frozen; YAML
+serialization belongs to the CLI or another outer adapter.
 
 Keep WebSockets, `CONNECT`, wildcard fallbacks, probes, and intentionally
 undocumented routes on the generic router. Executable operations declare each

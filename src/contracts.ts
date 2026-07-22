@@ -1,4 +1,4 @@
-import type { AuthContext, AuthRequirement, AuthResolver } from "@askrjs/auth";
+import type { AuthContext, AuthDecision, AuthRequirement, AuthResolver } from "@askrjs/auth";
 import type { EventStream, EventStreamOptions } from "./http/event-stream";
 import type { Router } from "./router/contracts";
 export type { RouteBuilder, Router } from "./router/contracts";
@@ -168,6 +168,10 @@ export type Handler<RouteParams extends Params = Params> = {
 }["bivarianceHack"];
 export type ProbeResult = boolean | Response | void;
 export type ProbeHandler = (context: ServerContext) => ProbeResult | Promise<ProbeResult>;
+export type AccessDeniedHandler = (
+  decision: Extract<AuthDecision, { allowed: false }>,
+  context: ServerContext,
+) => Response | Promise<Response>;
 
 export interface ApiRouteOptions<RouteParams extends Params = Params> {
   auth?: AuthRequirement;
@@ -195,6 +199,7 @@ export interface ServerAppOptions {
   routes?: readonly ApiRoute[];
   middleware?: readonly Middleware[];
   onError?: (error: unknown, context: ServerContext) => Response | Promise<Response>;
+  onAccessDenied?: AccessDeniedHandler;
   auth?: AuthResolver;
   fallback?: Handler;
   websocket?: WebSocketAdapter;

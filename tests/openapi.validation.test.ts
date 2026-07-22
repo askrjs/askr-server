@@ -100,7 +100,7 @@ describe("OpenAPI strict validation", () => {
       /duplicate explicit response/,
     ],
   ])("rejects %s", (_name, define, expected) => {
-    const api = createApi({ info: { title: "Invalid", version: "1" } });
+    const api = createApi({ info: { title: "Invalid", version: "1" }, metadata: "authored" });
     define(api);
     expect(() => api.toOpenApiDocument()).toThrow(expected);
     expect(() => api.createRouter(undefined)).toThrow(expected);
@@ -116,6 +116,49 @@ describe("OpenAPI strict validation", () => {
     validRoute(paths, "/a", "one");
     validRoute(paths, "/a", "two");
     expect(() => paths.toOpenApiDocument()).toThrow(/duplicate method\/path pair/);
+  });
+
+  it("derives deterministic registration metadata without inventing prose", () => {
+    const api = createApi({ info: { title: "Inferred", version: "1" } });
+    api.get("/users/{id}", (context) => context.ok()).pathParam("id", schema.string());
+    api.get("/", (context) => context.ok());
+    const first = api.toOpenApiDocument();
+    const second = api.toOpenApiDocument();
+    expect(first).toEqual(second);
+    expect(first.paths["/users/{id}"].get).toMatchObject({
+      operationId: "getUsersById",
+      responses: { default: { description: "Undocumented response" } },
+    });
+    expect(first.paths["/users/{id}"].get).not.toHaveProperty("summary");
+    expect(first.paths["/"].get?.operationId).toBe("getRoot");
+  });
+
+  it("reports derived operation ID collisions with both routes", () => {
+    const api = createApi({ info: { title: "Collision", version: "1" } });
+    api.get("/user-id", (context) => context.ok());
+    api.get("/user/id", (context) => context.ok());
+    expect(() => api.toOpenApiDocument()).toThrow(
+      /operationId getUserId collides between GET \/user-id and GET \/user\/id/,
+    );
+
+    const resolved = createApi({ info: { title: "Resolved", version: "1" } });
+    resolved.get("/user-id", (context) => context.ok());
+    resolved.get("/user/id", (context) => context.ok()).operationId("getNestedUserId");
+    expect(() => resolved.toOpenApiDocument()).not.toThrow();
+  });
+
+  it("does not count automatic access responses as authored responses", () => {
+    const api = createApi({
+      info: { title: "Authored", version: "1" },
+      metadata: "authored",
+      securitySchemes: { bearer: security.httpBearer() },
+    });
+    api
+      .get("/private", (context) => context.ok())
+      .operationId("getPrivate")
+      .summary("Get private")
+      .access(() => ({ allowed: false, reason: "unauthenticated" }), security.require("bearer"));
+    expect(() => api.toOpenApiDocument()).toThrow(/at least one response is required/);
   });
 
   it("rejects duplicate definitions and parameters at finalization", () => {

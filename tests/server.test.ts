@@ -389,6 +389,49 @@ describe("one auth context dispatch", () => {
     expect((await app.fetch(new Request("http://example.test/login"))).status).toBe(403);
   });
 
+  it.each(["unauthenticated", "forbidden", "already_authenticated"] as const)(
+    "should let applications own the %s access denial response before route execution",
+    async (reason) => {
+      const calls: string[] = [];
+      const app = createServerApp({
+        middleware: [async (_context, next) => (calls.push("global"), next())],
+        routes: [
+          {
+            path: "/",
+            auth: () => ({ allowed: false, reason }),
+            middleware: [async (_context, next) => (calls.push("route"), next())],
+            handler: () => (calls.push("handler"), text("secret")),
+          },
+        ],
+        onAccessDenied: (decision, context) => {
+          calls.push(`denied:${decision.reason}`);
+          return context.problem(reason === "unauthenticated" ? 401 : 403, "Access denied", {
+            extensions: { code: decision.reason, violations: [] },
+          });
+        },
+        onError: () => (calls.push("error"), text("error", { status: 500 })),
+      });
+      const response = await app.fetch(new Request("http://example.test/"));
+      expect(response.status).toBe(reason === "unauthenticated" ? 401 : 403);
+      expect(response.headers.get("www-authenticate")).toBeNull();
+      expect(await response.json()).toMatchObject({ code: reason, violations: [] });
+      expect(calls).toEqual(["global", `denied:${reason}`]);
+    },
+  );
+
+  it("should send access denial handler exceptions to onError", async () => {
+    const app = createServerApp({
+      routes: [{ path: "/", auth: requireUser(), handler: () => text("secret") }],
+      onAccessDenied: () => {
+        throw new Error("denial mapping failed");
+      },
+      onError: (error) => text((error as Error).message, { status: 503 }),
+    });
+    const response = await app.fetch(new Request("http://example.test/"));
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe("denial mapping failed");
+  });
+
   it("should run global middleware before route authorization", async () => {
     const order: string[] = [];
     const auth = () => (

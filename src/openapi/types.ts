@@ -48,6 +48,8 @@ export type SecurityRequirement = readonly SecurityRequirementObject[];
 
 export interface ApiOptions {
   readonly info: ApiInfo;
+  /** Infer registration-safe metadata, or require fully authored public contracts. */
+  readonly metadata?: "inferred" | "authored";
   readonly servers?: readonly ServerObject[];
   readonly externalDocs?: ExternalDocumentationObject;
   readonly securitySchemes?: Readonly<Record<string, SecurityScheme>>;
@@ -148,6 +150,7 @@ export interface RouteState<Dependencies> {
   path: string;
   handler: ApiHandler<Dependencies>;
   operationId?: string;
+  operationIdExplicit?: boolean;
   summary?: string;
   description?: string;
   tags: string[];

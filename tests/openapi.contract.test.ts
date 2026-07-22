@@ -142,6 +142,21 @@ describe("OpenAPI public contract", () => {
     expect(response.status).toBe(401);
   });
 
+  it("adds an inferred default response alongside secured access responses", () => {
+    const api = createApi({
+      info: { title: "Secure baseline", version: "1" },
+      securitySchemes: { bearer: security.httpBearer() },
+    });
+    api
+      .get("/private", (context) => context.ok())
+      .access(requireUser(), security.require("bearer"));
+    expect(api.toOpenApiDocument().paths["/private"].get?.responses).toMatchObject({
+      default: { description: "Undocumented response" },
+      "401": { description: "Unauthorized" },
+      "403": { description: "Forbidden" },
+    });
+  });
+
   it("supports schema composition, constraints, records, literals, and raw schemas", () => {
     const api = createApi({ info: { title: "Schemas", version: "1" } });
     const Base = api.schema(

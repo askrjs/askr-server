@@ -15,6 +15,27 @@ import { validateApi } from "./validate";
 
 const methodOrder = ["get", "post", "put", "patch", "delete", "options", "head", "trace"];
 
+function pascalToken(value: string): string {
+  return value
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
+    .join("");
+}
+
+function inferredOperationId(method: string, path: string): string {
+  const tokens = path.split("/").filter(Boolean);
+  const suffix = tokens.length
+    ? tokens
+        .map((token) => {
+          const parameter = /^\{([^{}]+)\}$/.exec(token);
+          return parameter ? `By${pascalToken(parameter[1])}` : pascalToken(token);
+        })
+        .join("")
+    : "Root";
+  return `${method.toLowerCase()}${suffix}`;
+}
+
 function sortedRecord<T>(entries: Iterable<readonly [string, T]>): Record<string, T> {
   return Object.fromEntries([...entries].sort(([left], [right]) => left.localeCompare(right)));
 }
@@ -92,7 +113,7 @@ function operation<Dependencies>(route: RouteState<Dependencies>): OperationObje
   );
   return {
     ...(route.tags.length ? { tags: [...new Set(route.tags)] } : {}),
-    summary: route.summary,
+    ...(route.summary !== undefined ? { summary: route.summary } : {}),
     ...(route.description ? { description: route.description } : {}),
     operationId: route.operationId,
     ...(route.parameters.length ? { parameters: route.parameters.map(parameter) } : {}),
@@ -137,7 +158,17 @@ export function createDocument<Dependencies>(
     },
     additionalProperties: true,
   });
-  for (const route of routes) addAutomaticAccessResponses(route);
+  for (const route of routes) {
+    route.operationId ??= inferredOperationId(route.method, route.path);
+    if (options.metadata !== "authored" && !route.responses.some((item) => item.explicit)) {
+      route.responses.push({
+        status: "default",
+        description: "Undocumented response",
+        explicit: false,
+      });
+    }
+    addAutomaticAccessResponses(route);
+  }
   validateApi(routes, schemas, options);
 
   const paths = new Map<string, Map<string, Record<string, unknown>>>();

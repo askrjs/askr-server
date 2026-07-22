@@ -93,6 +93,23 @@ function lifecycle(records: readonly TelemetryRecord[]): string[] {
 }
 
 describe("server telemetry", () => {
+  it("should use an inferred operation ID for both the document and telemetry", async () => {
+    const recorder = createTelemetryRecorder();
+    const api = createApi({ info: { title: "Telemetry", version: "1" } });
+    api.get("/users/{id}", (context) => context.ok()).pathParam("id", schema.string());
+    const documented = api.toOpenApiDocument().paths["/users/{id}"].get?.operationId;
+    await createServerApp({ router: api.createRouter(), telemetry: recorder.telemetry }).fetch(
+      new Request("http://example.test/users/42"),
+    );
+    expect(documented).toBe("getUsersById");
+    expect(recorder.records).toContainEqual(
+      expect.objectContaining({
+        operation: "askr.api.operation",
+        fields: expect.objectContaining({ operation: documented }),
+      }),
+    );
+  });
+
   it("should nest API execution under the request and record response status", async () => {
     const recorder = createTelemetryRecorder();
     const api = createApi({ info: { title: "Telemetry", version: "1" } });

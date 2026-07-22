@@ -1,4 +1,9 @@
-import { createRouter, type PathParams } from "../../dist/index.js";
+import {
+  createRouter,
+  createServerApp,
+  type AccessDeniedHandler,
+  type PathParams,
+} from "../../dist/index.js";
 import { createApi, schema, type InferSchema } from "../../dist/openapi.js";
 import {
   createAskrApp,
@@ -100,6 +105,14 @@ canonicalInput.queryParam("page", schema.string());
 
 const dependencyFree = createApi({ info: { title: "Free", version: "1" } });
 dependencyFree.createRouter();
+createApi({ info: { title: "Authored", version: "1" }, metadata: "authored" });
+const denied: AccessDeniedHandler = (decision, context) => {
+  decision.reason satisfies "unauthenticated" | "forbidden" | "already_authenticated";
+  // @ts-expect-error denied decisions are narrowed to allowed false
+  decision.allowed satisfies true;
+  return context.forbidden();
+};
+createServerApp({ onAccessDenied: denied });
 
 const grouped = createApi({ info: { title: "Grouped", version: "1" } });
 grouped
@@ -179,6 +192,7 @@ const composed = createAskrApp({
   version: "1",
   dependencies: { store: { read: () => "value" } },
   pages,
+  onAccessDenied: denied,
   api: {
     define(api) {
       api
