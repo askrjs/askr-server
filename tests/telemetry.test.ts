@@ -108,6 +108,13 @@ describe("server telemetry", () => {
         fields: expect.objectContaining({ operation: documented }),
       }),
     );
+    expect(recorder.records).toContainEqual(
+      expect.objectContaining({
+        operation: "askr.route.match",
+        fields: expect.objectContaining({ route: "/users/{id}" }),
+      }),
+    );
+    expect(JSON.stringify(recorder.records)).not.toContain("/users/42");
   });
 
   it("should nest API execution under the request and record response status", async () => {

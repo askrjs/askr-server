@@ -37,6 +37,26 @@ const response = await app.fetch(new Request("https://example.test/health"));
 An application is a fetch-shaped object, so it can be tested directly and passed to any compatible
 runtime adapter.
 
+## Strict CSP nonces
+
+`createCspNonce()` returns a request-memoized provider. Give the same provider
+to `createAskrApp()` and a callback-based CSP policy so the header, page
+renderer, deferred scripts, and runtime styles share one request nonce:
+
+```ts
+const nonce = createCspNonce();
+
+const app = createAskrApp({
+  // other application options
+  cspNonce: nonce,
+  middleware: [
+    securityHeaders({
+      contentSecurityPolicy: (ctx) => `default-src 'self'; style-src 'self' 'nonce-${nonce(ctx)}'`,
+    }),
+  ],
+});
+```
+
 ## Routing
 
 Literal route paths infer their parameters for HTTP, WebSocket, and OpenAPI

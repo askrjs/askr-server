@@ -17,7 +17,11 @@ export interface RateLimitOptions {
   readonly store?: RateLimitStore;
   readonly limit: number;
   readonly windowMs: number;
-  readonly key?: (context: Parameters<Middleware>[0]) => string;
+  /**
+   * Returns an application-trusted bucket identity. Proxy headers are
+   * intentionally never interpreted by this middleware.
+   */
+  readonly key: (context: Parameters<Middleware>[0]) => string;
   readonly now?: () => number;
 }
 
@@ -63,10 +67,7 @@ export function rateLimit(options: RateLimitOptions): Middleware {
   }
   const store = options.store ?? createMemoryRateLimitStore({ now: options.now });
   return async (context, next) => {
-    const key =
-      options.key?.(context) ??
-      context.headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim() ??
-      "anonymous";
+    const key = options.key(context);
     const result = await store.consume(key, options.limit, options.windowMs);
     const now = options.now?.() ?? Date.now();
     const resetSeconds = Math.max(0, Math.ceil((result.reset - now) / 1000));

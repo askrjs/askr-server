@@ -157,8 +157,11 @@ function success<P extends Principal>(
             );
       const { name, ...configuredCookie } = options.cookie;
       const cookie = {
+        httpOnly: true,
+        sameSite: "lax" as const,
+        path: "/",
         ...configuredCookie,
-        secure: configuredCookie.secure ?? context.url.protocol === "https:",
+        secure: configuredCookie.secure ?? true,
       };
       return context.setCookie(response, name, token, cookie);
     });
@@ -223,8 +226,11 @@ export function registerAuthRoutes<Dependencies, P extends Principal>(
         return context.forbidden("A same-origin Origin header is required.");
       const { name, ...configuredCookie } = options.cookie;
       const cookie = {
+        httpOnly: true,
+        sameSite: "lax" as const,
+        path: "/",
         ...configuredCookie,
-        secure: configuredCookie.secure ?? context.url.protocol === "https:",
+        secure: configuredCookie.secure ?? true,
       };
       return context.clearCookie(context.noContent(), name, cookie);
     })

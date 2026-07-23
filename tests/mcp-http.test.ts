@@ -15,7 +15,10 @@ const initialize = {
   },
 };
 
-function application(stateful = false) {
+function application(
+  stateful = false,
+  limits: { maxSessions?: number; sessionTtlMs?: number; now?: () => number } = {},
+) {
   const router = createRouter();
   registerMcpRoutes(router, "/mcp", createMcpServer({ name: "http", version: "1" }), {
     dependencies: undefined,
@@ -24,6 +27,7 @@ function application(stateful = false) {
     allowedHosts: ["server.example"],
     resource: "https://server.example/mcp",
     heartbeatInterval: 60_000,
+    ...limits,
   });
   return createServerApp(router);
 }
@@ -51,7 +55,7 @@ describe("MCP Streamable HTTP", () => {
           new Request("https://server.example/mcp", { headers: { host: "server.example" } }),
         )
       ).status,
-    ).toBe(405);
+    ).toBe(403);
     expect((await app.fetch(post(initialize, { origin: "https://evil.example" }))).status).toBe(
       403,
     );
@@ -72,7 +76,12 @@ describe("MCP Streamable HTTP", () => {
     const sessionHeaders = { "mcp-session-id": sessionId!, "mcp-protocol-version": "2025-11-25" };
     const stream = await app.fetch(
       new Request("https://server.example/mcp", {
-        headers: { accept: "text/event-stream", host: "server.example", ...sessionHeaders },
+        headers: {
+          accept: "text/event-stream",
+          host: "server.example",
+          origin: "https://client.example",
+          ...sessionHeaders,
+        },
       }),
     );
     expect(stream.headers.get("content-type")).toContain("text/event-stream");
@@ -82,7 +91,11 @@ describe("MCP Streamable HTTP", () => {
     const removed = await app.fetch(
       new Request("https://server.example/mcp", {
         method: "DELETE",
-        headers: { host: "server.example", ...sessionHeaders },
+        headers: {
+          host: "server.example",
+          origin: "https://client.example",
+          ...sessionHeaders,
+        },
       }),
     );
     expect(removed.status).toBe(204);
@@ -91,11 +104,43 @@ describe("MCP Streamable HTTP", () => {
         await app.fetch(
           new Request("https://server.example/mcp", {
             method: "DELETE",
-            headers: { host: "server.example", ...sessionHeaders },
+            headers: {
+              host: "server.example",
+              origin: "https://client.example",
+              ...sessionHeaders,
+            },
           }),
         )
       ).status,
     ).toBe(404);
+  });
+
+  it("should create sessions only after successful initialization and bound capacity", async () => {
+    const app = application(true, { maxSessions: 1 });
+    const invalid = await app.fetch(
+      post({ ...initialize, params: { ...initialize.params, protocolVersion: "invalid" } }),
+    );
+    expect(invalid.headers.get("mcp-session-id")).toBeNull();
+    const first = await app.fetch(post(initialize));
+    expect(first.status).toBe(200);
+    const second = await app.fetch(post(initialize));
+    expect(second.status).toBe(503);
+    expect(await second.text()).not.toContain("capacity is exhausted");
+  });
+
+  it("should expire default-store sessions after the configured TTL", async () => {
+    let now = 1_000;
+    const app = application(true, {
+      sessionTtlMs: 100,
+      now: () => now,
+    });
+    const initialized = await app.fetch(post(initialize));
+    const sessionId = initialized.headers.get("mcp-session-id")!;
+    now += 101;
+    const response = await app.fetch(
+      post({ jsonrpc: "2.0", id: 2, method: "ping" }, { "mcp-session-id": sessionId }),
+    );
+    expect(response.status).toBe(404);
   });
 
   it("should publish RFC 9728 protected-resource metadata", async () => {

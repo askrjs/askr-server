@@ -15,6 +15,7 @@ import type { ApiDefinition, ApiGroup } from "../openapi/public";
 import type { OpenApiDocument, SecurityScheme } from "../openapi/types";
 import { defineServerActions, type ActionEntry, type ActionRegistryOptions } from "./actions";
 import { createAskrPageHandler } from "./page-handler";
+import type { CspNonceProvider } from "../csp-nonce";
 
 export interface AskrApp {
   fetch(request: Request): Promise<Response>;
@@ -56,6 +57,7 @@ export interface AskrAppOptions<Dependencies, P extends Principal = Principal> {
   readonly onError?: ServerAppOptions["onError"];
   readonly onAccessDenied?: ServerAppOptions["onAccessDenied"];
   readonly close?: (dependencies: Dependencies) => void | Promise<void>;
+  readonly cspNonce?: CspNonceProvider;
 }
 
 function normalizePrefix(value: string | undefined): string {
@@ -104,6 +106,7 @@ export function createAskrApp<Dependencies, P extends Principal = Principal>(
       auth: options.auth?.pages,
       queryRegistry: options.queryRegistry,
       actions,
+      cspNonce: options.cspNonce,
     }),
   });
   let closing: Promise<void> | undefined;

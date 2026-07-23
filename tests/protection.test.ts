@@ -27,7 +27,7 @@ describe("request protection", () => {
 
   it("should rate limit with a private memory store when no store is supplied", async () => {
     const app = createServerApp({
-      middleware: [rateLimit({ limit: 1, windowMs: 1_000 })],
+      middleware: [rateLimit({ limit: 1, windowMs: 1_000, key: () => "anonymous" })],
       routes: [{ path: "/", handler: () => new Response("ok") }],
     });
     expect((await app.fetch(new Request("http://example.test/"))).status).toBe(200);
@@ -143,6 +143,7 @@ describe("request protection", () => {
         rateLimit({
           limit: 2,
           windowMs: 10_000,
+          key: () => "trusted-client",
           now: () => now,
           store: { consume: async () => ({ allowed: true, remaining: 1, reset: 6_000 }) },
         }),
@@ -162,6 +163,7 @@ describe("request protection", () => {
         rateLimit({
           limit: 1,
           windowMs: 10_000,
+          key: () => "trusted-client",
           now: () => 1_000,
           store: { consume: async () => ({ allowed: false, remaining: 0, reset: 3_100 }) },
         }),
