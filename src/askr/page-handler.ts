@@ -12,6 +12,7 @@ import { resolveRouteMeta, serializeRouteMeta } from "@askrjs/askr/router";
 import { resolveRouteRequest } from "@askrjs/askr/router";
 import type { Handler, ServerContext } from "../contracts";
 import type { ActionRegistry } from "./actions";
+import type { CspNonceProvider } from "../csp-nonce";
 
 export interface AskrPageHandlerOptions {
   manifest?: RouteManifest;
@@ -20,6 +21,7 @@ export interface AskrPageHandlerOptions {
   queryRegistry?: ServerQueryRegistry;
   seed?: number;
   actions?: ActionRegistry<any>;
+  cspNonce?: CspNonceProvider;
 }
 
 function headerValue(value: string): string {
@@ -140,6 +142,7 @@ export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler 
     throw new Error("createAskrPageHandler requires a route manifest or registry.");
   }
   return async (context) => {
+    const cspNonce = options.cspNonce?.(context);
     if (context.request.method === "POST" && options.actions) {
       const resolved = await resolveRouteRequest(context.request.url, {
         manifest,
@@ -183,6 +186,7 @@ export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler 
             action: execution,
             ...(token ? { csrf: token } : {}),
           },
+          cspNonce,
         });
         return translate(result, context, 422);
       }
@@ -202,6 +206,7 @@ export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler 
       seed: options.seed,
       telemetry: context.telemetry,
       framework: token ? { csrf: token } : undefined,
+      cspNonce,
     });
     return translate(result, context);
   };

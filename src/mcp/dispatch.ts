@@ -200,6 +200,9 @@ export async function dispatchMethod<Dependencies>(
       reference.type === "ref/resource" && typeof reference.uri === "string"
         ? registries.templates.find((item) => item.template === reference.uri)
         : undefined;
+    if (value && !(await visible(value, environment.auth))) {
+      return failure(id, errorCode.params, "Resource template not found");
+    }
     const values =
       value?.options.complete &&
       typeof argument.name === "string" &&

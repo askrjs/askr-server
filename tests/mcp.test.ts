@@ -82,6 +82,33 @@ describe("MCP server", () => {
     expect(result.result.nextCursor).toBeUndefined();
   });
 
+  it("should authorize resource templates before running completion handlers", async () => {
+    let completionCalls = 0;
+    const server = createMcpServer({ name: "test", version: "1" }).resourceTemplate(
+      "secret://items/{id}",
+      {
+        auth: () => ({ allowed: false, reason: "forbidden" }),
+        complete: () => {
+          completionCalls += 1;
+          return ["secret"];
+        },
+      },
+      () => ({ uri: "secret://items/1", text: "secret" }),
+    );
+    const result = (await server.handle(
+      request(1, "completion/complete", {
+        ref: { type: "ref/resource", uri: "secret://items/{id}" },
+        argument: { name: "id", value: "" },
+      }),
+      environment,
+    )) as any;
+    expect(result.error).toMatchObject({
+      code: -32602,
+      message: "Resource template not found",
+    });
+    expect(completionCalls).toBe(0);
+  });
+
   it("should deliver progress and list change notifications", async () => {
     const messages: unknown[] = [];
     const server = createMcpServer({ name: "test", version: "1" }).tool(

@@ -6,13 +6,16 @@ import type { McpRequestEnvironment, McpServer, McpSessionStore } from "./types"
 export interface McpHttpOptions<Dependencies = undefined> {
   dependencies: Dependencies;
   stateful?: boolean;
-  allowedOrigins?: readonly string[];
-  allowedHosts?: readonly string[];
+  allowedOrigins: readonly string[];
+  allowedHosts: readonly string[];
   maxRequestBytes?: number;
   resource?: string;
   authorizationServers?: readonly string[];
   sessionStore?: McpSessionStore;
   heartbeatInterval?: number;
+  sessionTtlMs?: number;
+  maxSessions?: number;
+  now?: () => number;
 }
 
 type Channel = EventStream;
@@ -28,20 +31,36 @@ function validRequest(
   options: McpHttpOptions<unknown>,
 ): Response | undefined {
   const origin = context.headers.get("origin");
-  if (origin && options.allowedOrigins && !options.allowedOrigins.includes(origin))
+  if (!origin || !options.allowedOrigins.includes(origin))
     return context.forbidden("Origin is not allowed.");
   const host = context.headers.get("host");
-  if (options.allowedHosts && (!host || !options.allowedHosts.includes(host)))
+  if (!host || !options.allowedHosts.includes(host))
     return context.forbidden("Host is not allowed.");
   return undefined;
 }
-function memorySessionStore(): McpSessionStore {
-  const values = new Set<string>();
+function memorySessionStore(options: McpHttpOptions<unknown>): McpSessionStore {
+  const values = new Map<string, number>();
+  const now = options.now ?? Date.now;
+  const ttl = options.sessionTtlMs ?? 30 * 60_000;
+  const capacity = options.maxSessions ?? 1_000;
+  if (!Number.isFinite(ttl) || ttl <= 0) throw new TypeError("MCP sessionTtlMs must be positive.");
+  if (!Number.isInteger(capacity) || capacity <= 0)
+    throw new TypeError("MCP maxSessions must be a positive integer.");
+  const purge = () => {
+    const current = now();
+    for (const [id, expires] of values) if (expires <= current) values.delete(id);
+  };
   return {
     create(id) {
-      values.add(id);
+      purge();
+      if (!values.has(id) && values.size >= capacity)
+        throw new Error("MCP session capacity is exhausted.");
+      values.set(id, now() + ttl);
     },
-    has: (id) => values.has(id),
+    has(id) {
+      purge();
+      return values.has(id);
+    },
     delete: (id) => values.delete(id),
   };
 }
@@ -64,7 +83,7 @@ export function registerMcpRoutes<Dependencies>(
   options: McpHttpOptions<Dependencies>,
 ): Router {
   const channels = new Map<string, Channel>();
-  const sessions = options.sessionStore ?? memorySessionStore();
+  const sessions = options.sessionStore ?? memorySessionStore(options as McpHttpOptions<unknown>);
   const environment = (
     context: ServerContext,
     sessionId?: string,
@@ -138,9 +157,19 @@ export function registerMcpRoutes<Dependencies>(
       ? (requested ?? (isInitialize ? crypto.randomUUID() : undefined))
       : undefined;
     if (options.stateful && !sessionId) return context.badRequest("MCP-Session-Id is required.");
-    if (sessionId && !requested) await sessions.create(sessionId);
     const result = await mcp.handle(message, environment(context, sessionId));
-    const headers: Record<string, string> = sessionId ? { "mcp-session-id": sessionId } : {};
+    let created = false;
+    if (sessionId && !requested && result && typeof result === "object" && "result" in result) {
+      try {
+        await sessions.create(sessionId);
+        created = true;
+      } catch {
+        mcp.terminateSession(sessionId);
+        return context.error(503, "MCP session capacity is unavailable.");
+      }
+    }
+    const headers: Record<string, string> =
+      sessionId && (requested || created) ? { "mcp-session-id": sessionId } : {};
     return result === undefined
       ? new Response(null, { status: 202, headers })
       : json(result, 200, headers);

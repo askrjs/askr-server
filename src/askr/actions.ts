@@ -242,7 +242,6 @@ export function defineServerActions<Dependencies>(
       const fields = {
         requestId,
         traceId,
-        route: context.url.pathname,
         action: entry.descriptor.id,
       };
       const run = async (): Promise<ActionExecution> => {
