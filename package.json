@@ -93,14 +93,14 @@
     "@askrjs/schema": ">=0.0.1 <0.1.0"
   },
   "devDependencies": {
-    "@askrjs/askr": ">=0.0.52 <0.1.0",
+    "@askrjs/askr": ">=0.0.64 <0.1.0",
     "publint": "^0.3.12",
     "typescript": "^6.0.0",
     "vite-plus": "^0.2.4",
     "vitest": "^4.0.0"
   },
   "peerDependencies": {
-    "@askrjs/askr": ">=0.0.52 <0.1.0"
+    "@askrjs/askr": ">=0.0.64 <0.1.0"
   },
   "peerDependenciesMeta": {
     "@askrjs/askr": {
