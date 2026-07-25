@@ -136,6 +136,9 @@ function routeContext(context: ServerContext, params: Record<string, string>): R
 }
 
 export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler {
+  if (!options.registry) {
+    throw new Error("createAskrPageHandler requires a route registry.");
+  }
   const { manifest } = options.registry;
   return async (context) => {
     const cspNonce = options.cspNonce?.(context);
