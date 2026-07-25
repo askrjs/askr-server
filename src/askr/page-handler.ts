@@ -3,8 +3,8 @@ import type { ServerQueryRegistry } from "@askrjs/askr/data";
 import type {
   ParsedSegment,
   RouteAuthOptions,
-  RouteContext,
   RouteManifest,
+  RouteContext,
   RouteRecord,
   RouteRegistry,
 } from "@askrjs/askr/router";
@@ -15,8 +15,7 @@ import type { ActionRegistry } from "./actions";
 import type { CspNonceProvider } from "../csp-nonce";
 
 export interface AskrPageHandlerOptions {
-  manifest?: RouteManifest;
-  registry?: RouteRegistry;
+  registry: RouteRegistry;
   auth?: RouteAuthOptions;
   queryRegistry?: ServerQueryRegistry;
   seed?: number;
@@ -137,15 +136,12 @@ function routeContext(context: ServerContext, params: Record<string, string>): R
 }
 
 export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler {
-  const manifest = options.manifest ?? options.registry?.manifest;
-  if (!manifest) {
-    throw new Error("createAskrPageHandler requires a route manifest or registry.");
-  }
+  const { manifest } = options.registry;
   return async (context) => {
     const cspNonce = options.cspNonce?.(context);
     if (context.request.method === "POST" && options.actions) {
       const resolved = await resolveRouteRequest(context.request.url, {
-        manifest,
+        registry: options.registry,
         mode: "ssr",
         auth: options.auth ?? manifest.auth,
         authContext: context.auth,
@@ -174,7 +170,7 @@ export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler 
         const token = await options.actions.csrfToken(context);
         const result = await renderRouteRequest({
           url: context.request.url,
-          manifest,
+          registry: options.registry,
           auth: options.auth ?? manifest.auth,
           authContext: context.auth,
           request: context.request,
@@ -197,7 +193,7 @@ export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler 
     const token = options.actions ? await options.actions.csrfToken(context) : undefined;
     const result = await renderRouteRequest({
       url: context.request.url,
-      manifest,
+      registry: options.registry,
       auth: options.auth ?? manifest.auth,
       authContext: context.auth,
       request: context.request,
