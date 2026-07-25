@@ -184,6 +184,7 @@ const actions = defineServerActions(
   }),
 );
 declare const manifest: RouteManifest;
+// @ts-expect-error page handling consumes the explicit route registry only
 createAskrPageHandler({ manifest, actions });
 
 declare const pages: RouteRegistry;
