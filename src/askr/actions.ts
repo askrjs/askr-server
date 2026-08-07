@@ -5,7 +5,7 @@ import type { Issue } from "@askrjs/schema";
 import type { CookieOptions, Params, ServerContext } from "../contracts";
 import { createCsrfToken } from "../middleware/csrf";
 import { readRequestFormData, readRequestText } from "../body-limit";
-import { accepts, contentType } from "../http/media-types";
+import { contentType, explicitlyAccepts } from "../http/media-types";
 import {
   authorizedAction,
   csrfFailure,
@@ -120,7 +120,7 @@ function randomSecret(): string {
 
 function requestAcceptsEnvelope(context: ServerContext): boolean {
   const value = context.headers.get("accept");
-  return value !== null && accepts(value, "application/vnd.askr.action+json");
+  return value !== null && explicitlyAccepts(value, "application/vnd.askr.action+json");
 }
 
 function appendValue(output: Record<string, unknown>, key: string, value: unknown): void {
