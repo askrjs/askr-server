@@ -1,7 +1,7 @@
 import type { Router, ServerApp, ServerAppOptions } from "./contracts";
 import { BindingError } from "./binding";
 import { anonymousAuthContext, createServerContext } from "./context";
-import { createTerminal, runGlobalMiddleware } from "./dispatch";
+import { dispatchRequest } from "./dispatch";
 import { problem } from "./http/responses";
 import {
   configureRequestLimit,
@@ -11,6 +11,11 @@ import {
   validateMaxRequestBytes,
 } from "./body-limit";
 import { createMatcher, MalformedPathParameterError } from "./router/matcher";
+
+const telemetryHeaders = {
+  keys: (headers: Headers): string[] => [...headers.keys()],
+  get: (headers: Headers, key: string): string | undefined => headers.get(key) ?? undefined,
+};
 
 function isRouter(value: Router | ServerAppOptions): value is Router {
   return "use" in value && "routes" in value;
@@ -30,63 +35,62 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
     if (route.maxRequestBytes !== undefined)
       validateMaxRequestBytes(route.maxRequestBytes, "ApiRouteOptions.maxRequestBytes");
 
+  const execute = async (
+    request: Request,
+    dispatchOptions: Parameters<ServerApp["fetch"]>[1],
+    requestId: string | undefined,
+  ): Promise<Response> => {
+    if (applicationMaximum !== DEFAULT_MAX_REQUEST_BYTES) {
+      configureRequestLimit(request, applicationMaximum);
+    }
+    const context = createServerContext(
+      request,
+      anonymousAuthContext(),
+      options,
+      dispatchOptions?.websocket,
+    );
+    const traceId = options.telemetry?.traceId();
+    if (requestId) context.state.requestId = requestId;
+    if (traceId) context.state.traceId = traceId;
+    try {
+      const found = options.telemetry
+        ? options.telemetry.routeMatch({ requestId, traceId }, () =>
+            matcher.match(context.url.pathname, request.method, context.params),
+          )
+        : matcher.match(context.url.pathname, request.method, context.params);
+      context.params = found.match?.params ?? {};
+      const maximum = found.match?.route.maxRequestBytes ?? applicationMaximum;
+      if (maximum !== applicationMaximum) configureRequestLimit(request, maximum);
+      rejectOversizedContentLength(request, maximum);
+      if (options.auth) {
+        context.auth = await options.auth.resolve(request, { signal: request.signal });
+      }
+      return await dispatchRequest(middleware, context, found, options);
+    } catch (error) {
+      if (error instanceof PayloadTooLargeError) {
+        return problem(413, error.message, { title: "Payload Too Large" });
+      }
+      if (error instanceof MalformedPathParameterError) return problem(400, error.message);
+      if (error instanceof BindingError) {
+        return problem(error.status, error.message, {
+          extensions: error.field ? { field: error.field } : undefined,
+        });
+      }
+      if (options.onError) return options.onError(error, context);
+      return problem(500);
+    }
+  };
+
   return {
     async fetch(request, dispatchOptions): Promise<Response> {
       const requestId = request.headers.get("x-request-id") ?? undefined;
-      const execute = async (): Promise<Response> => {
-        configureRequestLimit(request, applicationMaximum);
-        const context = createServerContext(
-          request,
-          anonymousAuthContext(),
-          options,
-          dispatchOptions?.websocket,
-        );
-        const traceId = options.telemetry?.traceId();
-        if (requestId) context.state.requestId = requestId;
-        if (traceId) context.state.traceId = traceId;
-        try {
-          const match = () => matcher.match(context.url.pathname, request.method);
-          const found = options.telemetry
-            ? options.telemetry.routeMatch({ requestId, traceId }, match)
-            : match();
-          context.params = found.match?.params ?? {};
-          const maximum = found.match?.route.maxRequestBytes ?? applicationMaximum;
-          configureRequestLimit(request, maximum);
-          rejectOversizedContentLength(request, maximum);
-          if (options.auth) {
-            context.auth = await options.auth.resolve(request, { signal: request.signal });
-          }
-          const response = await runGlobalMiddleware(
-            middleware,
-            context,
-            createTerminal(found, options),
-          );
-          return response;
-        } catch (error) {
-          let response: Response;
-          if (error instanceof PayloadTooLargeError) {
-            response = problem(413, error.message, { title: "Payload Too Large" });
-          } else if (error instanceof MalformedPathParameterError) {
-            response = problem(400, error.message);
-          } else if (error instanceof BindingError) {
-            response = problem(error.status, error.message, {
-              extensions: error.field ? { field: error.field } : undefined,
-            });
-          } else if (options.onError) {
-            response = await options.onError(error, context);
-          } else {
-            response = problem(500);
-          }
-          return response;
-        }
-      };
+      if (!options.telemetry) return execute(request, dispatchOptions, requestId);
       const instrumented = () =>
-        options.telemetry ? options.telemetry.request({ requestId }, execute) : execute();
+        options.telemetry!.request({ requestId }, () =>
+          execute(request, dispatchOptions, requestId),
+        );
       if (options.telemetry?.extract && options.telemetry.withContext) {
-        const extracted = options.telemetry.extract(request.headers, {
-          keys: (headers) => [...headers.keys()],
-          get: (headers, key) => headers.get(key) ?? undefined,
-        });
+        const extracted = options.telemetry.extract(request.headers, telemetryHeaders);
         return options.telemetry.withContext(extracted, instrumented);
       }
       return instrumented();

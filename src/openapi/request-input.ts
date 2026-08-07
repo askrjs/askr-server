@@ -1,6 +1,7 @@
 import type { Issue } from "@askrjs/schema";
 import type { ServerContext } from "../contracts";
 import { hasBufferedRequestBody, readRequestFormData, readRequestText } from "../body-limit";
+import { contentType } from "../http/media-types";
 import type { ApiBodyInput, ApiInput, InferApiInput } from "./types";
 
 export type OperationInputResult<Input extends ApiInput> =
@@ -8,23 +9,30 @@ export type OperationInputResult<Input extends ApiInput> =
   | { readonly success: false; readonly status: 400; readonly detail: string }
   | { readonly success: false; readonly status: 422; readonly issues: readonly Issue[] };
 
+const normalizedMediaTypes = new WeakMap<ApiBodyInput, readonly string[]>();
+
+function mediaTypes(declaration: ApiBodyInput): readonly string[] {
+  const existing = normalizedMediaTypes.get(declaration);
+  if (existing) return existing;
+  const values = declaration.mediaTypes.map((value) => value.trim().toLowerCase());
+  normalizedMediaTypes.set(declaration, values);
+  return values;
+}
+
 function appendValue(output: Record<string, unknown>, key: string, value: unknown): void {
   if (!Object.hasOwn(output, key)) {
     output[key] = value;
     return;
   }
   const previous = output[key];
-  output[key] = Array.isArray(previous) ? [...previous, value] : [previous, value];
+  if (Array.isArray(previous)) previous.push(value);
+  else output[key] = [previous, value];
 }
 
 function entries(input: Iterable<readonly [string, unknown]>): Record<string, unknown> {
   const output: Record<string, unknown> = {};
   for (const [key, value] of input) appendValue(output, key, value);
   return output;
-}
-
-function mediaType(request: Request): string | undefined {
-  return request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
 }
 
 async function readBody(
@@ -43,8 +51,8 @@ async function readBody(
       ? { success: false, detail: "A request body is required for this operation." }
       : { success: true, data: {} };
   }
-  const type = mediaType(request);
-  const allowed = declaration.mediaTypes.map((value) => value.trim().toLowerCase());
+  const type = contentType(request.headers.get("content-type"));
+  const allowed = mediaTypes(declaration);
   if (!type || !allowed.includes(type)) {
     return {
       success: false,
@@ -90,11 +98,10 @@ export async function readOperationInput<Input extends ApiInput>(
   input: Input,
   bodyRequired = false,
 ): Promise<OperationInputResult<Input>> {
-  const sources: Partial<Record<keyof ApiInput, unknown>> = {
-    params: context.params,
-    query: entries(context.query.entries()),
-    headers: Object.fromEntries(context.headers.entries()),
-  };
+  const sources: Partial<Record<keyof ApiInput, unknown>> = {};
+  if (input.params) sources.params = context.params;
+  if (input.query) sources.query = entries(context.query.entries());
+  if (input.headers) sources.headers = Object.fromEntries(context.headers.entries());
   if (input.body) {
     const body = await readBody(context.request, input.body, bodyRequired);
     if (!body.success) return { success: false, status: 400, detail: body.detail };

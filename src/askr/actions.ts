@@ -5,7 +5,7 @@ import type { Issue } from "@askrjs/schema";
 import type { CookieOptions, Params, ServerContext } from "../contracts";
 import { createCsrfToken } from "../middleware/csrf";
 import { readRequestFormData, readRequestText } from "../body-limit";
-import { accepts } from "../http/media-types";
+import { accepts, contentType } from "../http/media-types";
 import {
   authorizedAction,
   csrfFailure,
@@ -129,7 +129,8 @@ function appendValue(output: Record<string, unknown>, key: string, value: unknow
     return;
   }
   const previous = output[key];
-  output[key] = Array.isArray(previous) ? [...previous, value] : [previous, value];
+  if (Array.isArray(previous)) previous.push(value);
+  else output[key] = [previous, value];
 }
 
 async function readSubmission(
@@ -145,7 +146,7 @@ async function readSubmission(
     }
   | { readonly success: false; readonly response: Response }
 > {
-  const type = context.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  const type = contentType(context.headers.get("content-type"));
   const idHeader = context.headers.get("x-askr-action") ?? undefined;
   const csrfHeaderValue = context.headers.get(csrfHeader) ?? undefined;
   try {

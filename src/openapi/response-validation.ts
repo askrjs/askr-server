@@ -1,4 +1,5 @@
 import type { ServerContext } from "../contracts";
+import { contentType } from "../http/media-types";
 import type { ResponseDefinition } from "./types";
 
 function isDevelopment(): boolean {
@@ -24,11 +25,11 @@ export async function validateOperationResponse(
     definitions.find((item) => item.status === range) ??
     definitions.find((item) => item.status === "default");
   if (!definition?.schema) return response;
-  const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  const type = contentType(response.headers.get("content-type"));
   const expectedType = definition.mediaType?.trim().toLowerCase();
-  if (contentType !== expectedType) {
+  if (type !== expectedType) {
     return context.problem(500, "Operation response did not use its declared media type.", {
-      extensions: { expected: expectedType, received: contentType ?? null },
+      extensions: { expected: expectedType, received: type ?? null },
     });
   }
   let body: unknown;

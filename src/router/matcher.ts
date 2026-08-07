@@ -17,8 +17,6 @@ type Node = {
   leaves: Leaf[];
 };
 
-type Candidate = { leaf: Leaf; values: readonly string[]; specificity: readonly number[] };
-
 export interface RouteMatch {
   route: ApiRoute;
   params: Params;
@@ -26,11 +24,11 @@ export interface RouteMatch {
 
 export interface MatchResult {
   match?: RouteMatch;
-  allowed: string[];
+  allowed: readonly string[];
 }
 
 export interface CompiledMatcher {
-  match(pathname: string, method: string): MatchResult;
+  match(pathname: string, method: string, params?: Params): MatchResult;
 }
 
 export class MalformedPathParameterError extends URIError {}
@@ -41,10 +39,19 @@ function node(): Node {
 
 function pathnameSegments(pathname: string): string[] | undefined {
   if (pathname === "/") return [];
-  const source = pathname.endsWith("/") ? pathname.slice(1, -1) : pathname.slice(1);
-  if (!source) return undefined;
-  const parts = source.split("/");
-  return parts.some((part) => !part) ? undefined : parts;
+  if (pathname.charCodeAt(0) !== 47) return undefined;
+  const end =
+    pathname.charCodeAt(pathname.length - 1) === 47 ? pathname.length - 1 : pathname.length;
+  if (end <= 1) return undefined;
+  const parts: string[] = [];
+  let start = 1;
+  for (let index = 1; index <= end; index += 1) {
+    if (index !== end && pathname.charCodeAt(index) !== 47) continue;
+    if (index === start) return undefined;
+    parts.push(pathname.slice(start, index));
+    start = index + 1;
+  }
+  return parts;
 }
 
 function parameterChild(parent: Node): Node {
@@ -84,108 +91,151 @@ function addRoute(root: Node, route: ApiRoute, order: number): void {
   current.leaves.push({ route, methods, order, parameterNames: names });
 }
 
-function collect(
-  current: Node,
-  parts: readonly string[],
-  index: number,
-  values: readonly string[],
-  specificity: readonly number[],
-  candidates: Candidate[],
-): void {
-  if (index === parts.length) {
-    for (const leaf of current.leaves) candidates.push({ leaf, values, specificity });
-    if (current.namedWildcard) {
-      for (const leaf of current.namedWildcard.leaves) {
-        candidates.push({
-          leaf,
-          values: [...values, ""],
-          specificity: [...specificity, 0],
-        });
-      }
-    }
-    return;
-  }
-  const part = parts[index];
-  const staticChild = current.static.get(part);
-  if (staticChild) collect(staticChild, parts, index + 1, values, [...specificity, 2], candidates);
-  if (current.parameter) {
-    collect(
-      current.parameter,
-      parts,
-      index + 1,
-      [...values, part],
-      [...specificity, 1],
-      candidates,
-    );
-  }
-  if (current.namedWildcard) {
-    for (const leaf of current.namedWildcard.leaves) {
-      candidates.push({
-        leaf,
-        values: [...values, parts.slice(index).join("/")],
-        specificity: [...specificity, 0],
-      });
-    }
-  }
-  if (current.wildcard) {
-    for (const leaf of current.wildcard.leaves) {
-      candidates.push({ leaf, values, specificity: [...specificity, 0] });
-    }
-  }
-}
-
-function compareSpecificity(left: Candidate, right: Candidate): number {
-  const length = Math.max(left.specificity.length, right.specificity.length);
-  for (let index = 0; index < length; index += 1) {
-    const difference = (right.specificity[index] ?? -1) - (left.specificity[index] ?? -1);
-    if (difference) return difference;
-  }
-  return 0;
-}
-
-function compareForMethod(method: string, left: Candidate, right: Candidate): number {
-  const specificity = compareSpecificity(left, right);
-  if (specificity) return specificity;
-  if (method === "HEAD") {
-    const leftExplicit = left.leaf.methods.includes("HEAD");
-    const rightExplicit = right.leaf.methods.includes("HEAD");
-    if (leftExplicit !== rightExplicit) return leftExplicit ? -1 : 1;
-  }
-  return left.leaf.order - right.leaf.order;
+function hasMethod(leaf: Leaf, method: string): boolean {
+  return leaf.methods.length === 1 ? leaf.methods[0] === method : leaf.methods.includes(method);
 }
 
 function supports(leaf: Leaf, method: string): boolean {
-  if (leaf.methods.includes(method)) return true;
-  return method === "HEAD" && !leaf.route.upgrade && leaf.methods.includes("GET");
+  if (hasMethod(leaf, method)) return true;
+  return method === "HEAD" && !leaf.route.upgrade && hasMethod(leaf, "GET");
 }
 
-function decode(candidate: Candidate): Params {
-  const params = { __proto__: null } as unknown as Params;
+function preferredLeaf(
+  method: string,
+  left: Leaf | undefined,
+  right: Leaf | undefined,
+): Leaf | undefined {
+  if (!left) return right;
+  if (!right) return left;
+  if (method === "HEAD") {
+    const leftExplicit = hasMethod(left, "HEAD");
+    const rightExplicit = hasMethod(right, "HEAD");
+    if (leftExplicit !== rightExplicit) return leftExplicit ? left : right;
+  }
+  return left.order <= right.order ? left : right;
+}
+
+function matchingLeaf(leaves: readonly Leaf[], method: string): Leaf | undefined {
+  let match: Leaf | undefined;
+  for (const leaf of leaves) {
+    if (supports(leaf, method)) match = preferredLeaf(method, match, leaf);
+  }
+  return match;
+}
+
+function decode(leaf: Leaf, values: readonly string[], params?: Params): Params {
+  const output = params ?? {};
   try {
-    candidate.leaf.parameterNames.forEach((name, index) => {
-      const raw = candidate.values[index] ?? "";
-      params[name] = raw.split("/").map(decodeURIComponent).join("/");
+    leaf.parameterNames.forEach((name, index) => {
+      const value = decodeURIComponent(values[index] ?? "");
+      if (name === "__proto__") {
+        Object.defineProperty(output, name, {
+          configurable: true,
+          enumerable: true,
+          value,
+          writable: true,
+        });
+      } else {
+        output[name] = value;
+      }
     });
   } catch (error) {
     throw new MalformedPathParameterError("A route parameter contains invalid percent-encoding.", {
       cause: error,
     });
   }
-  return params;
+  return output;
 }
 
-function allowedMethods(candidates: readonly Candidate[]): string[] {
+function routeMatch(leaf: Leaf, values: readonly string[], params?: Params): RouteMatch {
+  return { route: leaf.route, params: decode(leaf, values, params) };
+}
+
+const noValues: readonly string[] = Object.freeze([]);
+
+function findMatch(
+  current: Node,
+  parts: readonly string[],
+  index: number,
+  values: string[] | undefined,
+  method: string,
+  params?: Params,
+): RouteMatch | undefined {
+  if (index === parts.length) {
+    if (current.namedWildcard) {
+      const leaf = matchingLeaf(current.namedWildcard.leaves, method);
+      if (leaf) {
+        const captures = values ?? [];
+        captures.push("");
+        const match = routeMatch(leaf, captures, params);
+        captures.pop();
+        return match;
+      }
+    }
+    const leaf = matchingLeaf(current.leaves, method);
+    return leaf ? routeMatch(leaf, values ?? noValues, params) : undefined;
+  }
+
+  const part = parts[index]!;
+  const staticChild = current.static.get(part);
+  if (staticChild) {
+    const match = findMatch(staticChild, parts, index + 1, values, method, params);
+    if (match) return match;
+  }
+  if (current.parameter) {
+    const captures = values ?? [];
+    captures.push(part);
+    const match = findMatch(current.parameter, parts, index + 1, captures, method, params);
+    captures.pop();
+    if (match) return match;
+  }
+
+  const named = current.namedWildcard
+    ? matchingLeaf(current.namedWildcard.leaves, method)
+    : undefined;
+  const unnamed = current.wildcard ? matchingLeaf(current.wildcard.leaves, method) : undefined;
+  const leaf = preferredLeaf(method, named, unnamed);
+  if (!leaf) return undefined;
+  if (leaf === named) {
+    const captures = values ?? [];
+    captures.push(parts.slice(index).join("/"));
+    const match = routeMatch(leaf, captures, params);
+    captures.pop();
+    return match;
+  }
+  return routeMatch(leaf, values ?? noValues, params);
+}
+
+function collectLeaves(
+  current: Node,
+  parts: readonly string[],
+  index: number,
+  leaves: Leaf[],
+): void {
+  if (index === parts.length) {
+    leaves.push(...current.leaves);
+    if (current.namedWildcard) leaves.push(...current.namedWildcard.leaves);
+    return;
+  }
+  const part = parts[index]!;
+  const staticChild = current.static.get(part);
+  if (staticChild) collectLeaves(staticChild, parts, index + 1, leaves);
+  if (current.parameter) collectLeaves(current.parameter, parts, index + 1, leaves);
+  if (current.namedWildcard) leaves.push(...current.namedWildcard.leaves);
+  if (current.wildcard) leaves.push(...current.wildcard.leaves);
+}
+
+function allowedMethods(leaves: Leaf[]): string[] {
   const allowed: string[] = [];
   const seen = new Set<string>();
-  for (const candidate of [...candidates].sort(
-    (left, right) => left.leaf.order - right.leaf.order,
-  )) {
-    for (const method of candidate.leaf.methods) {
+  leaves.sort((left, right) => left.order - right.order);
+  for (const leaf of leaves) {
+    for (const method of leaf.methods) {
       if (!seen.has(method)) {
         seen.add(method);
         allowed.push(method);
       }
-      if (method === "GET" && !candidate.leaf.route.upgrade && !seen.has("HEAD")) {
+      if (method === "GET" && !leaf.route.upgrade && !seen.has("HEAD")) {
         seen.add("HEAD");
         allowed.push("HEAD");
       }
@@ -194,21 +244,29 @@ function allowedMethods(candidates: readonly Candidate[]): string[] {
   return allowed;
 }
 
+function normalizedMethod(method: string): string {
+  for (let index = 0; index < method.length; index += 1) {
+    const code = method.charCodeAt(index);
+    if (code >= 97 && code <= 122) return method.toUpperCase();
+  }
+  return method;
+}
+
+const noMethods: readonly string[] = Object.freeze([]);
+
 export function createMatcher(routes: readonly ApiRoute[]): CompiledMatcher {
   const root = node();
-  [...routes].forEach((route, order) => addRoute(root, route, order));
+  let order = 0;
+  for (const route of routes) addRoute(root, route, order++);
   return {
-    match(pathname, method) {
-      const normalizedMethod = method.toUpperCase();
-      const candidates: Candidate[] = [];
+    match(pathname, method, params) {
       const parts = pathnameSegments(pathname);
-      if (parts) collect(root, parts, 0, [], [], candidates);
-      candidates.sort((left, right) => compareForMethod(normalizedMethod, left, right));
-      const candidate = candidates.find((value) => supports(value.leaf, normalizedMethod));
-      return {
-        match: candidate ? { route: candidate.leaf.route, params: decode(candidate) } : undefined,
-        allowed: allowedMethods(candidates),
-      };
+      if (!parts) return { allowed: noMethods };
+      const match = findMatch(root, parts, 0, undefined, normalizedMethod(method), params);
+      if (match) return { match, allowed: noMethods };
+      const leaves: Leaf[] = [];
+      collectLeaves(root, parts, 0, leaves);
+      return { allowed: allowedMethods(leaves) };
     },
   };
 }

@@ -101,7 +101,9 @@ describe("server architecture", () => {
     const matcher = readFileSync(resolve(root, "src/router/matcher.ts"), "utf8");
     const application = readFileSync(resolve(root, "src/application.ts"), "utf8");
     expect(matcher).not.toMatch(/new URL\(/);
-    expect(application).toContain("matcher.match(context.url.pathname, request.method)");
+    expect(application).toContain(
+      "matcher.match(context.url.pathname, request.method, context.params)",
+    );
   });
 
   it("should keep public exports free of React-shaped vocabulary", () => {

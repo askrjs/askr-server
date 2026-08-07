@@ -7,6 +7,10 @@ import type {
 } from "../contracts";
 import { cloneResponse, copyHeaders } from "./headers";
 
+const jsonHeaders = { "content-type": "application/json; charset=utf-8" } as const;
+const textHeaders = { "content-type": "text/plain; charset=utf-8" } as const;
+const problemHeaders = { "content-type": "application/problem+json" } as const;
+
 function responseHeaders(init: ResponseInit | undefined, contentType?: string): Headers {
   const headers = copyHeaders(init?.headers);
   if (contentType && !headers.has("content-type")) headers.set("content-type", contentType);
@@ -14,6 +18,7 @@ function responseHeaders(init: ResponseInit | undefined, contentType?: string): 
 }
 
 export function json(value: JsonValue, init?: ResponseInit): Response {
+  if (!init) return new Response(JSON.stringify(value), { headers: jsonHeaders });
   return new Response(JSON.stringify(value), {
     ...init,
     headers: responseHeaders(init, "application/json; charset=utf-8"),
@@ -21,6 +26,7 @@ export function json(value: JsonValue, init?: ResponseInit): Response {
 }
 
 export function text(value: string, init?: ResponseInit): Response {
+  if (!init) return new Response(value, { headers: textHeaders });
   return new Response(value, {
     ...init,
     headers: responseHeaders(init, "text/plain; charset=utf-8"),
@@ -60,14 +66,20 @@ export function problem(
     ...(fields.instance === undefined ? {} : { instance: fields.instance }),
     ...extensions,
   };
-  return new Response(JSON.stringify(value), {
-    ...init,
-    status,
-    headers: responseHeaders(init, "application/problem+json"),
-  });
+  return new Response(
+    JSON.stringify(value),
+    init
+      ? { ...init, status, headers: responseHeaders(init, "application/problem+json") }
+      : { status, headers: problemHeaders },
+  );
 }
 
 function withStatus(status: number, value?: JsonValue, init?: ResponseInit): Response {
+  if (!init) {
+    return value === undefined
+      ? new Response(null, { status })
+      : new Response(JSON.stringify(value), { status, headers: jsonHeaders });
+  }
   return value === undefined
     ? new Response(null, { ...init, status, headers: responseHeaders(init) })
     : json(value, { ...init, status });

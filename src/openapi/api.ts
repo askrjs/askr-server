@@ -198,7 +198,8 @@ export function createApi<Dependencies = undefined>(
         router.route(
           route.method,
           route.path,
-          async (context) => {
+          (context) => {
+            if (!context.telemetry) return route.handler(context, dependencies!);
             const requestId =
               typeof context.state.requestId === "string" ? context.state.requestId : undefined;
             const traceId =
@@ -207,11 +208,9 @@ export function createApi<Dependencies = undefined>(
                 : context.telemetry?.traceId();
             const operation = route.operationId ?? `${route.method} ${route.path}`;
             const fields = { requestId, traceId, route: route.path, operation };
-            const execute = () => route.handler(context, dependencies!);
-            const response = await (context.telemetry
-              ? context.telemetry.apiOperation(fields, execute)
-              : execute());
-            return response;
+            return context.telemetry.apiOperation(fields, () =>
+              route.handler(context, dependencies!),
+            );
           },
           {
             auth: route.access?.requirement,
