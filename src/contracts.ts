@@ -15,9 +15,12 @@ type TrimRight<Value extends string> = Value extends `${infer Rest}${Whitespace}
 type Trim<Value extends string> = TrimLeft<TrimRight<Value>>;
 type StripWildcard<Name extends string> =
   Trim<Name> extends `*${infer Value}` ? Trim<Value> : Trim<Name>;
-type PathParameterNames<Path extends string> = Path extends `${string}{${infer Name}}${infer Rest}`
-  ? StripWildcard<Name> | PathParameterNames<Rest>
+type SegmentParameterName<Segment extends string> = Segment extends `{${infer Name}}`
+  ? StripWildcard<Name>
   : never;
+type PathParameterNames<Path extends string> = Path extends `${infer Segment}/${infer Rest}`
+  ? SegmentParameterName<Segment> | PathParameterNames<Rest>
+  : SegmentParameterName<Path>;
 export type PathParams<Path extends string> = string extends Path
   ? Params
   : { [Name in PathParameterNames<Path>]: string };

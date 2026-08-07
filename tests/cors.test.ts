@@ -104,6 +104,13 @@ describe("CORS middleware", () => {
     expect(() => cors({ origin: "*", credentials: true })).toThrow(/wildcard origin/);
   });
 
+  it.each([-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "should reject invalid preflight max age %s during construction",
+    (maxAgeSeconds) => {
+      expect(() => cors({ maxAgeSeconds })).toThrow(/maxAgeSeconds/);
+    },
+  );
+
   it("should route dynamic wildcard credential failures through onError", async () => {
     const app = createServerApp({
       middleware: [cors({ origin: () => "*", credentials: true })],

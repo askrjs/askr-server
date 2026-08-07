@@ -1,4 +1,10 @@
-import type { McpContext, McpRequestEnvironment } from "./types";
+import type {
+  McpContent,
+  McpContext,
+  McpPrimitiveOptions,
+  McpRequestEnvironment,
+  McpToolResult,
+} from "./types";
 import {
   errorCode,
   failure,
@@ -15,7 +21,7 @@ import {
   type Tool,
 } from "./internal";
 
-async function allowed<T extends { options: any }, Dependencies>(
+async function allowed<T extends { options: McpPrimitiveOptions }, Dependencies>(
   values: readonly T[],
   environment: McpRequestEnvironment<Dependencies>,
 ): Promise<T[]> {
@@ -40,7 +46,11 @@ async function dispatchTool<Dependencies>(
   if (!parsed.success)
     return failure(id, errorCode.params, "Invalid tool arguments", { issues: parsed.issues });
   try {
-    const result = await value.handler(context, parsed.data);
+    const handler = value.handler as (
+      context: McpContext<Dependencies>,
+      input: unknown,
+    ) => McpToolResult | Promise<McpToolResult>;
+    const result = await handler(context, parsed.data);
     if (value.output && result.structuredContent !== undefined) {
       const output = value.output.safeParse(result.structuredContent);
       if (!output.success)
@@ -77,6 +87,7 @@ async function dispatchResources<Dependencies>(
       params.cursor,
       registries.pageSize,
     );
+    if (!result) return failure(id, errorCode.params, "Invalid cursor");
     return success(id, {
       resources: result.values.map((value) => ({
         uri: value.uri,
@@ -92,6 +103,7 @@ async function dispatchResources<Dependencies>(
       params.cursor,
       registries.pageSize,
     );
+    if (!result) return failure(id, errorCode.params, "Invalid cursor");
     return success(id, {
       resourceTemplates: result.values.map((value) => ({
         uriTemplate: value.template,
@@ -111,7 +123,18 @@ async function dispatchResources<Dependencies>(
   const entry: Resource | Template | undefined = exact ?? matched?.value;
   if (!entry || !(await visible(entry, environment.auth)))
     return failure(id, errorCode.params, "Resource not found");
-  const result = await entry.handler(context, new URL(params.uri), matched?.variables ?? {});
+  let uri: URL;
+  try {
+    uri = new URL(params.uri);
+  } catch {
+    return failure(id, errorCode.params, "Resource URI is invalid");
+  }
+  const handler = entry.handler as (
+    context: McpContext<Dependencies>,
+    uri: URL,
+    variables: Readonly<Record<string, string>>,
+  ) => McpContent | readonly McpContent[] | Promise<McpContent | readonly McpContent[]>;
+  const result = await handler(context, uri, matched?.variables ?? {});
   return success(id, { contents: Array.isArray(result) ? result : [result] });
 }
 
@@ -126,6 +149,7 @@ async function dispatchPrompts<Dependencies>(
 ) {
   if (method === "prompts/list") {
     const result = page(await allowed([...prompts.values()], environment), params.cursor, pageSize);
+    if (!result) return failure(id, errorCode.params, "Invalid cursor");
     return success(id, {
       prompts: result.values.map((value) => ({
         name: value.name,
@@ -149,8 +173,12 @@ async function dispatchPrompts<Dependencies>(
   if (!value || !(await visible(value, environment.auth)))
     return failure(id, errorCode.params, "Prompt not found");
   const parsed = value.arguments.safeParse(params.arguments ?? {});
+  const handler = value.handler as (
+    context: McpContext<Dependencies>,
+    input: unknown,
+  ) => unknown | Promise<unknown>;
   return parsed.success
-    ? success(id, await value.handler(context, parsed.data))
+    ? success(id, await handler(context, parsed.data))
     : failure(id, errorCode.params, "Invalid prompt arguments", { issues: parsed.issues });
 }
 
@@ -169,6 +197,7 @@ export async function dispatchMethod<Dependencies>(
       params.cursor,
       registries.pageSize,
     );
+    if (!result) return failure(id, errorCode.params, "Invalid cursor");
     return success(id, {
       tools: result.values.map((value) => ({
         name: value.name,
@@ -207,7 +236,12 @@ export async function dispatchMethod<Dependencies>(
       value?.options.complete &&
       typeof argument.name === "string" &&
       typeof argument.value === "string"
-        ? await value.options.complete(argument.name, argument.value)
+        ? await (
+            value.options.complete as (
+              argument: string,
+              value: string,
+            ) => readonly string[] | Promise<readonly string[]>
+          )(argument.name, argument.value)
         : [];
     return success(id, {
       completion: {

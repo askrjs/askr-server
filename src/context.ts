@@ -9,6 +9,8 @@ import { bind } from "./binding";
 import * as responses from "./http/responses";
 import { createEventStream } from "./http/event-stream";
 
+const responseHelpers = Object.freeze({ ...responses });
+
 export function anonymousAuthContext(): AuthContext {
   return { authenticated: false, principal: null, session: null, tenant: null };
 }
@@ -27,6 +29,7 @@ export function createServerContext(
       ? (dispatchWebsocket ?? options.websocket)!.upgrade(request, handler, context)
       : responses.problem(501, "This server does not provide a WebSocket upgrade adapter.");
   context = {
+    __proto__: responseHelpers,
     request,
     url,
     params: {},
@@ -35,14 +38,14 @@ export function createServerContext(
     state: {},
     auth,
     signal: request.signal,
-    sse: (streamOptions) => createEventStream({ ...streamOptions, signal: request.signal }),
+    sse: (streamOptions: Parameters<ServerContext["sse"]>[0]) =>
+      createEventStream({ ...streamOptions, signal: request.signal }),
     telemetry: options.telemetry,
     bind: <T extends object = Record<string, unknown>>() => {
       bound ??= bind(context);
       return bound as Promise<T>;
     },
-    ...responses,
     upgrade,
-  };
+  } as unknown as ServerContext;
   return context;
 }

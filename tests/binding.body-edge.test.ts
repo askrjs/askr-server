@@ -39,7 +39,7 @@ describe("model binding body method and media-type edges", () => {
     await expect(response.json()).resolves.toEqual({ ok: true, id: "1" });
   });
 
-  it("preserves every JSON value type below the object root", async () => {
+  it("should preserve every JSON value type below the object root", async () => {
     const response = await echoApp().fetch(
       jsonRequest(
         JSON.stringify({
@@ -69,19 +69,19 @@ describe("model binding body method and media-type edges", () => {
     });
   });
 
-  it("uses normal JSON duplicate-key semantics", async () => {
+  it("should use normal JSON duplicate-key semantics", async () => {
     const response = await echoApp().fetch(jsonRequest('{"value":"first","value":"last"}'));
     await expect(response.json()).resolves.toEqual({ value: "last", id: "1" });
   });
 
-  it("treats an empty JSON body as contributing no values", async () => {
+  it("should treat an empty JSON body as contributing no values", async () => {
     const request = jsonRequest("");
     const response = await echoApp().fetch(request);
     await expect(response.json()).resolves.toEqual({ id: "1" });
     expect(request.bodyUsed).toBe(true);
   });
 
-  it("does not consume a null body even when a supported content type is declared", async () => {
+  it("should not consume a null body even when a supported content type is declared", async () => {
     const request = new Request("http://example.test/items/1?q=yes", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -91,7 +91,7 @@ describe("model binding body method and media-type edges", () => {
     expect(request.bodyUsed).toBe(false);
   });
 
-  it("leaves a body without Content-Type unread", async () => {
+  it("should leave a body without Content-Type unread", async () => {
     const request = new Request("http://example.test/items/1?q=yes", {
       method: "POST",
       body: "untyped",
@@ -140,7 +140,7 @@ describe("model binding body method and media-type edges", () => {
     });
   });
 
-  it("still ignores an unsupported body after another consumer has read it", async () => {
+  it("should still ignore an unsupported body after another consumer has read it", async () => {
     const app = createServerApp({
       middleware: [
         async (ctx, next) => {
@@ -164,7 +164,7 @@ describe("model binding body method and media-type edges", () => {
 });
 
 describe("model binding URL-encoded form edges", () => {
-  it("decodes plus signs, percent encoding, Unicode, bare fields, and empty names", async () => {
+  it("should decode plus signs percent encoding Unicode bare fields and empty names", async () => {
     const response = await echoApp().fetch(
       new Request("http://example.test/items/1", {
         method: "POST",
@@ -182,7 +182,7 @@ describe("model binding URL-encoded form edges", () => {
     });
   });
 
-  it("preserves many repeated fields without changing order", async () => {
+  it("should preserve many repeated fields without changing order", async () => {
     const values = Array.from({ length: 64 }, (_, index) => `value-${index}`);
     const body = values.map((value) => `tag=${value}`).join("&");
     const response = await echoApp().fetch(
@@ -196,7 +196,7 @@ describe("model binding URL-encoded form edges", () => {
     expect(result.tag).toEqual(values);
   });
 
-  it("safely binds prototype-sensitive form field names", async () => {
+  it("should safely bind prototype-sensitive form field names", async () => {
     const response = await echoApp().fetch(
       new Request("http://example.test/items/1", {
         method: "POST",
@@ -211,7 +211,7 @@ describe("model binding URL-encoded form edges", () => {
     expect(result.toString).toBe("text");
   });
 
-  it("treats an empty URL-encoded body as contributing no values", async () => {
+  it("should treat an empty URL-encoded body as contributing no values", async () => {
     const response = await echoApp().fetch(
       new Request("http://example.test/items/1", {
         method: "POST",
@@ -224,7 +224,7 @@ describe("model binding URL-encoded form edges", () => {
 });
 
 describe("model binding multipart edges", () => {
-  it("binds an empty multipart form", async () => {
+  it("should bind an empty multipart form", async () => {
     const response = await echoApp().fetch(
       new Request("http://example.test/items/1", {
         method: "POST",
@@ -234,7 +234,7 @@ describe("model binding multipart edges", () => {
     await expect(response.json()).resolves.toEqual({ id: "1" });
   });
 
-  it("preserves mixed text and file entries with the same name", async () => {
+  it("should preserve mixed text and file entries with the same name", async () => {
     const form = new FormData();
     form.append("mixed", "before");
     form.append("mixed", new Blob(["file"], { type: "text/plain" }), "résumé.txt");
@@ -272,7 +272,7 @@ describe("model binding multipart edges", () => {
     });
   });
 
-  it("safely binds prototype-sensitive multipart field names", async () => {
+  it("should safely bind prototype-sensitive multipart field names", async () => {
     const form = new FormData();
     form.append("__proto__", "safe");
     form.append("constructor", "also-safe");
@@ -288,7 +288,7 @@ describe("model binding multipart edges", () => {
     expect(result.constructor).toBe("also-safe");
   });
 
-  it("lets query and route values replace multipart fields and files", async () => {
+  it("should let query and route values replace multipart fields and files", async () => {
     const form = new FormData();
     form.append("value", new Blob(["file"]), "value.txt");
     form.append("query", "form");
@@ -303,7 +303,7 @@ describe("model binding multipart edges", () => {
 });
 
 describe("model binding read and error edges", () => {
-  it("turns a failing request stream into a 400 binding problem", async () => {
+  it("should turn a failing request stream into a 400 binding problem", async () => {
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.error(new Error("stream failed"));
@@ -325,7 +325,7 @@ describe("model binding read and error edges", () => {
   it.each([
     ["application/json", "{}"],
     ["application/x-www-form-urlencoded", "value=yes"],
-  ])("rejects an already-consumed %s body", async (contentType, body) => {
+  ])("should reject an already-consumed %s body", async (contentType, body) => {
     const app = createServerApp({
       middleware: [
         async (ctx, next) => {
@@ -348,7 +348,7 @@ describe("model binding read and error edges", () => {
     expect(((await response.json()) as { detail: string }).detail).toMatch(/already been consumed/);
   });
 
-  it("rejects an already-consumed multipart body", async () => {
+  it("should reject an already-consumed multipart body", async () => {
     const form = new FormData();
     form.append("value", "yes");
     const app = createServerApp({
@@ -372,7 +372,7 @@ describe("model binding read and error edges", () => {
     expect(((await response.json()) as { detail: string }).detail).toMatch(/already been consumed/);
   });
 
-  it("exposes a stable BindingError name, status, message, and cause", async () => {
+  it("should expose a stable BindingError name status message and cause", async () => {
     const request = jsonRequest("{");
     const url = new URL(request.url);
     try {
@@ -389,7 +389,7 @@ describe("model binding read and error edges", () => {
     }
   });
 
-  it("keeps binding errors out of onError", async () => {
+  it("should keep binding errors out of onError", async () => {
     let onErrorCalls = 0;
     const app = createServerApp({
       routes: [

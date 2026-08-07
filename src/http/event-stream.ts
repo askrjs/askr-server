@@ -34,26 +34,39 @@ function dataValue(value: unknown): string {
   return serialized === undefined ? "null" : serialized;
 }
 
+function formatLines(value: string, prefix: string): string {
+  let output = "";
+  let start = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code !== 10 && code !== 13) continue;
+    output += `${prefix}${value.slice(start, index)}\n`;
+    if (code === 13 && value.charCodeAt(index + 1) === 10) index += 1;
+    start = index + 1;
+  }
+  return `${output}${prefix}${value.slice(start)}`;
+}
+
 export function formatServerSentEvent(event: ServerSentEvent): string {
-  const fields: string[] = [];
+  let output = "";
   if (event.event !== undefined) {
     safeField(event.event, "event");
-    fields.push(`event: ${event.event}`);
+    output += `event: ${event.event}\n`;
   }
   if (event.id !== undefined) {
     safeField(event.id, "id");
-    fields.push(`id: ${event.id}`);
+    output += `id: ${event.id}\n`;
   }
   if (event.retry !== undefined) {
     if (!Number.isSafeInteger(event.retry) || event.retry < 0) {
       throw new TypeError("SSE retry must be a non-negative safe integer.");
     }
-    fields.push(`retry: ${event.retry}`);
+    output += `retry: ${event.retry}\n`;
   }
   if (event.data !== undefined) {
-    for (const line of dataValue(event.data).split(/\r\n|\r|\n/)) fields.push(`data: ${line}`);
+    output += `${formatLines(dataValue(event.data), "data: ")}\n`;
   }
-  return `${fields.join("\n")}\n\n`;
+  return output ? `${output}\n` : "\n\n";
 }
 
 export function createEventStream(options: EventStreamOptions = {}): EventStream {
@@ -61,6 +74,14 @@ export function createEventStream(options: EventStreamOptions = {}): EventStream
   if (!Number.isSafeInteger(highWaterMark) || highWaterMark < 1) {
     throw new TypeError("SSE highWaterMark must be a positive safe integer.");
   }
+  const heartbeatInterval = options.heartbeatInterval;
+  if (
+    heartbeatInterval !== undefined &&
+    (!Number.isSafeInteger(heartbeatInterval) || heartbeatInterval <= 0)
+  ) {
+    throw new TypeError("SSE heartbeatInterval must be a positive safe integer.");
+  }
+  const signal = options.signal;
   let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let settled = false;
@@ -75,6 +96,7 @@ export function createEventStream(options: EventStreamOptions = {}): EventStream
     if (settled) return;
     settled = true;
     if (heartbeat) clearInterval(heartbeat);
+    signal?.removeEventListener("abort", finish);
     while (waiters.length) waiters.shift()?.();
     try {
       controller?.close();
@@ -123,27 +145,19 @@ export function createEventStream(options: EventStreamOptions = {}): EventStream
     comment(value) {
       if (value.includes("\0"))
         return Promise.reject(new TypeError("SSE comments must not contain NUL."));
-      return write(
-        `${value
-          .split(/\r\n|\r|\n/)
-          .map((line) => `: ${line}`)
-          .join("\n")}\n\n`,
-      );
+      return write(`${formatLines(value, ": ")}\n\n`);
     },
     async close() {
       finish();
       await closed;
     },
   };
-  options.signal?.addEventListener("abort", finish, { once: true });
-  if (options.signal?.aborted) finish();
-  if (options.heartbeatInterval !== undefined) {
-    if (!Number.isSafeInteger(options.heartbeatInterval) || options.heartbeatInterval <= 0) {
-      throw new TypeError("SSE heartbeatInterval must be a positive safe integer.");
-    }
+  if (heartbeatInterval !== undefined) {
     heartbeat = setInterval(() => {
       void api.comment("heartbeat").catch(() => undefined);
-    }, options.heartbeatInterval);
+    }, heartbeatInterval);
   }
+  if (signal?.aborted) finish();
+  else signal?.addEventListener("abort", finish, { once: true });
   return api;
 }

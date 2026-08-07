@@ -39,6 +39,87 @@ describe("MCP server", () => {
       { ...environment, supportsPush: true },
     )) as any;
     expect(pushed.result.capabilities.tools.listChanged).toBe(true);
+
+    const fallback = (await server.handle(
+      request(2, "initialize", {
+        protocolVersion: "2099-01-01",
+        capabilities: {},
+        clientInfo: { name: "future-client", version: "1" },
+      }),
+      environment,
+    )) as any;
+    expect(fallback.result.protocolVersion).toBe("2025-11-25");
+  });
+
+  it("should require complete initialization parameters without responding to notifications", async () => {
+    const server = createMcpServer({ name: "test", version: "1" });
+    const incomplete = (await server.handle(
+      request(1, "initialize", { protocolVersion: "2025-11-25" }),
+      environment,
+    )) as any;
+    expect(incomplete.error).toMatchObject({
+      code: -32602,
+      message: "Client capabilities are required",
+    });
+    await expect(
+      server.handle(
+        {
+          jsonrpc: "2.0",
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-11-25",
+            capabilities: {},
+            clientInfo: { name: "client", version: "1" },
+          },
+        },
+        environment,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("should reject repeated initialization for a stateful session", async () => {
+    const server = createMcpServer({ name: "test", version: "1" });
+    const stateful = { ...environment, sessionId: "session" };
+    const message = request(1, "initialize", {
+      protocolVersion: "2025-11-25",
+      capabilities: {},
+      clientInfo: { name: "client", version: "1" },
+    });
+    await server.handle(message, stateful);
+    const repeated = (await server.handle(message, stateful)) as any;
+    expect(repeated.error).toMatchObject({
+      code: -32600,
+      message: "Session is already initialized",
+    });
+  });
+
+  it("should ignore initialized notifications for unknown stateful sessions", async () => {
+    const messages: unknown[] = [];
+    const server = createMcpServer({ name: "test", version: "1" });
+    await server.handle(
+      { jsonrpc: "2.0", method: "notifications/initialized" },
+      { ...environment, sessionId: "missing", send: (message) => messages.push(message) },
+    );
+    await server.notifyToolsChanged();
+    expect(messages).toEqual([]);
+  });
+
+  it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "should reject invalid page size %s during construction",
+    (pageSize) => {
+      expect(() => createMcpServer({ name: "test", version: "1", pageSize })).toThrow(/pageSize/);
+    },
+  );
+
+  it("should reject duplicate primitive registrations during construction", () => {
+    const server = createMcpServer({ name: "test", version: "1" }).tool(
+      "duplicate",
+      { input: schema.object({}) },
+      () => ({ content: [] }),
+    );
+    expect(() =>
+      server.tool("duplicate", { input: schema.object({}) }, () => ({ content: [] })),
+    ).toThrow(/Duplicate MCP tool/);
   });
 
   it("should validate tools and separate tool failures from protocol failures", async () => {
@@ -80,6 +161,25 @@ describe("MCP server", () => {
     const result = (await server.handle(request(1, "tools/list"), environment)) as any;
     expect(result.result.tools.map((tool: any) => tool.name)).toEqual(["visible"]);
     expect(result.result.nextCursor).toBeUndefined();
+
+    const invalid = (await server.handle(
+      request(2, "tools/list", { cursor: "999999999999999999999999999" }),
+      environment,
+    )) as any;
+    expect(invalid.error).toMatchObject({ code: -32602, message: "Invalid cursor" });
+  });
+
+  it("should report malformed resource URIs as invalid parameters", async () => {
+    const server = createMcpServer({ name: "test", version: "1" }).resourceTemplate(
+      "file:///{path}",
+      {},
+      () => ({ uri: "file:///value", text: "value" }),
+    );
+    const result = (await server.handle(
+      request(1, "resources/read", { uri: "file:///%E0%A4%A" }),
+      environment,
+    )) as any;
+    expect(result.error).toMatchObject({ code: -32602, message: "Resource not found" });
   });
 
   it("should authorize resource templates before running completion handlers", async () => {

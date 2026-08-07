@@ -49,6 +49,12 @@ export function cors(options: CorsOptions = {}): Middleware {
   if (options.credentials && configured === "*") {
     throw new TypeError("CORS credentials cannot be used with a wildcard origin.");
   }
+  if (
+    options.maxAgeSeconds !== undefined &&
+    (!Number.isSafeInteger(options.maxAgeSeconds) || options.maxAgeSeconds < 0)
+  ) {
+    throw new TypeError("CORS maxAgeSeconds must be a non-negative safe integer.");
+  }
   const methods = (
     options.methods ?? ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
   ).map((method) => method.toUpperCase());

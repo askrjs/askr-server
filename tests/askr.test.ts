@@ -19,7 +19,7 @@ const anonymous: AuthContext = {
 };
 
 describe("Askr page fallback", () => {
-  it("rejects manifest-only page handler options at runtime", () => {
+  it("should reject manifest-only page handler options at runtime", () => {
     expect(() => createAskrPageHandler({ manifest: {} } as never)).toThrow(
       "createAskrPageHandler requires a route registry.",
     );

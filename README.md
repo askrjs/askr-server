@@ -68,6 +68,10 @@ router.get("/objects/{*key}", (ctx) => {
 });
 ```
 
+Route paths are absolute. Parameters must occupy an entire segment, parameter
+names must be unique, and wildcards must be the final segment. Invalid patterns
+are rejected during registration instead of being partially matched at runtime.
+
 ## Explicit dependencies
 
 Create application dependencies at the composition root and pass them into
@@ -219,6 +223,13 @@ router.post("/login", async (ctx) => {
 });
 ```
 
+`registerAuthRoutes()` can add conventional JSON registration and session
+routes to a `createApi()` definition. Credentials are read only from the
+declared JSON body, never merged from the query string. Successful mutations
+return `{ authenticated, principal, session, tenant }`; an optional `revoke`
+callback invalidates server-side state before the DELETE route clears its
+cookie.
+
 `challenge()` emits `WWW-Authenticate`. `setCookie()` and `clearCookie()` only
 modify a response; they do not validate credentials or own session storage.
 
@@ -365,8 +376,10 @@ api
   .ok(User);
 ```
 
-Malformed declared transport input returns `400`. Executable-schema rejection
-returns `422` with paths prefixed by `params`, `query`, `headers`, or `body`.
+Malformed declared transport input returns `400`. A body marked
+`documentation.body.required: true` is also required at runtime.
+Executable-schema rejection returns `422` with paths prefixed by `params`,
+`query`, `headers`, or `body`.
 A declared body is never derived from the flat `ctx.bind()` model. Response
 parameters and request bodies are generated directly from these executable
 schemas; optional `documentation` may add descriptions, examples, and parameter
@@ -437,6 +450,42 @@ OpenAPI body parsing through the bounded framework body cache.
 Rate-limit rejection emits
 `429`, `Retry-After`, and `RateLimit-Limit`, `RateLimit-Remaining`, and
 `RateLimit-Reset` headers.
+
+## MCP servers
+
+Import MCP primitives from `@askrjs/server/mcp`. Registration rejects duplicate
+tools, resources, resource templates, and prompts so accidental replacement is
+not order-dependent:
+
+```ts
+import { createMcpServer, registerMcpRoutes } from "@askrjs/server/mcp";
+import { schema } from "@askrjs/schema";
+
+const dependencies = { items: { find: async (id: string) => `item:${id}` } };
+const mcp = createMcpServer<typeof dependencies>({
+  name: "inventory",
+  version: "1.0.0",
+});
+
+mcp.tool("find_item", { input: schema.object({ id: schema.string() }) }, async (ctx, input) => ({
+  content: [{ type: "text", text: await ctx.dependencies.items.find(input.id) }],
+}));
+
+registerMcpRoutes(router, "/mcp", mcp, {
+  dependencies,
+  stateful: true,
+  allowedOrigins: ["https://client.example"],
+  allowedHosts: ["api.example"],
+});
+```
+
+The HTTP adapter validates `Origin` and `Host`, requires JSON POST bodies, and
+requires clients to advertise both JSON and server-sent events in `Accept`.
+Stateful mode issues bounded, expiring session IDs and exposes an optional GET
+event stream. Initialization negotiates the newest supported revision when a
+client proposes a different revision; subsequent unsupported protocol headers
+receive `400`. Session state is process-local, so stateful deployments require
+request affinity even when a custom ID store is supplied.
 
 ## Optional telemetry
 

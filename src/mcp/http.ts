@@ -1,6 +1,7 @@
 import type { Router, ServerContext } from "../contracts";
-import { PayloadTooLargeError, readRequestText } from "../body-limit";
+import { PayloadTooLargeError, readRequestText, validateMaxRequestBytes } from "../body-limit";
 import { createEventStream, type EventStream } from "../http/event-stream";
+import { accepts, contentType } from "../http/media-types";
 import type { McpRequestEnvironment, McpServer, McpSessionStore } from "./types";
 
 export interface McpHttpOptions<Dependencies = undefined> {
@@ -38,7 +39,10 @@ function validRequest(
     return context.forbidden("Host is not allowed.");
   return undefined;
 }
-function memorySessionStore(options: McpHttpOptions<unknown>): McpSessionStore {
+function memorySessionStore(
+  options: McpHttpOptions<unknown>,
+  expired: (id: string) => void,
+): McpSessionStore {
   const values = new Map<string, number>();
   const now = options.now ?? Date.now;
   const ttl = options.sessionTtlMs ?? 30 * 60_000;
@@ -48,7 +52,12 @@ function memorySessionStore(options: McpHttpOptions<unknown>): McpSessionStore {
     throw new TypeError("MCP maxSessions must be a positive integer.");
   const purge = () => {
     const current = now();
-    for (const [id, expires] of values) if (expires <= current) values.delete(id);
+    for (const [id, expires] of values) {
+      if (expires <= current) {
+        values.delete(id);
+        expired(id);
+      }
+    }
   };
   return {
     create(id) {
@@ -82,8 +91,29 @@ export function registerMcpRoutes<Dependencies>(
   mcp: McpServer<Dependencies>,
   options: McpHttpOptions<Dependencies>,
 ): Router {
+  const maximum = validateMaxRequestBytes(
+    options.maxRequestBytes ?? 1024 * 1024,
+    "McpHttpOptions.maxRequestBytes",
+  );
+  if (
+    options.heartbeatInterval !== undefined &&
+    (!Number.isSafeInteger(options.heartbeatInterval) || options.heartbeatInterval < 1)
+  ) {
+    throw new TypeError("MCP heartbeatInterval must be a positive safe integer.");
+  }
   const channels = new Map<string, Channel>();
-  const sessions = options.sessionStore ?? memorySessionStore(options as McpHttpOptions<unknown>);
+  const discardSession = (sessionId: string) => {
+    void channels.get(sessionId)?.close();
+    channels.delete(sessionId);
+    mcp.terminateSession(sessionId);
+  };
+  const sessions =
+    options.sessionStore ?? memorySessionStore(options as McpHttpOptions<unknown>, discardSession);
+  const hasSession = async (sessionId: string): Promise<boolean> => {
+    if (await sessions.has(sessionId)) return true;
+    if (options.sessionStore) discardSession(sessionId);
+    return false;
+  };
   const environment = (
     context: ServerContext,
     sessionId?: string,
@@ -103,18 +133,13 @@ export function registerMcpRoutes<Dependencies>(
   router.post(path, async (context) => {
     const invalid = validRequest(context, options as McpHttpOptions<unknown>);
     if (invalid) return invalid;
-    const contentType = context.headers.get("content-type")?.split(";", 1)[0]?.trim();
-    if (contentType !== "application/json")
+    const requestType = contentType(context.headers.get("content-type"));
+    if (requestType !== "application/json")
       return context.error(415, "MCP requires application/json.");
     const accept = context.headers.get("accept") ?? "";
-    if (
-      !accept.includes("application/json") &&
-      !accept.includes("text/event-stream") &&
-      accept !== "*/*"
-    )
-      return context.error(406, "MCP requires application/json or text/event-stream.");
+    if (!accepts(accept, "application/json") || !accepts(accept, "text/event-stream"))
+      return context.error(406, "MCP requires application/json and text/event-stream.");
     const length = Number(context.headers.get("content-length") ?? 0);
-    const maximum = options.maxRequestBytes ?? 1024 * 1024;
     if (Number.isFinite(length) && length > maximum)
       return context.error(413, "MCP request is too large.");
     let message: unknown;
@@ -147,7 +172,7 @@ export function registerMcpRoutes<Dependencies>(
     )
       return context.badRequest("Unsupported MCP-Protocol-Version.");
     const requested = context.headers.get("mcp-session-id") ?? undefined;
-    if (requested && options.stateful && !(await sessions.has(requested)))
+    if (requested && options.stateful && !(await hasSession(requested)))
       return context.notFound("MCP session not found.");
     const isInitialize =
       message &&
@@ -179,9 +204,9 @@ export function registerMcpRoutes<Dependencies>(
     if (invalid) return invalid;
     if (!options.stateful) return context.methodNotAllowed(["POST"]);
     const sessionId = context.headers.get("mcp-session-id");
-    if (!sessionId || !(await sessions.has(sessionId)))
+    if (!sessionId || !(await hasSession(sessionId)))
       return context.notFound("MCP session not found.");
-    if (!(context.headers.get("accept") ?? "").includes("text/event-stream"))
+    if (!accepts(context.headers.get("accept") ?? "", "text/event-stream"))
       return context.error(406, "MCP GET requires text/event-stream.");
     await channels.get(sessionId)?.close();
     const next = createEventStream({

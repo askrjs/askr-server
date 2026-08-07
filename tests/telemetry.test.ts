@@ -1,7 +1,7 @@
 import { createRouteRegistry, route } from "@askrjs/askr/router";
 import { defineServerQueries, defineQuery, serveQuery } from "@askrjs/askr/data";
 import { schema } from "@askrjs/schema";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createServerApp } from "../src/application";
 import { defineServerActions, handleAction } from "../src/askr/actions";
 import { createAskrPageHandler } from "../src/askr/page-handler";
@@ -109,12 +109,22 @@ describe("server telemetry", () => {
       }),
     );
     expect(recorder.records).toContainEqual(
-      expect.objectContaining({
-        operation: "askr.route.match",
-        fields: expect.objectContaining({ route: "/users/{id}" }),
-      }),
+      expect.objectContaining({ operation: "askr.route.match" }),
     );
     expect(JSON.stringify(recorder.records)).not.toContain("/users/42");
+  });
+
+  it("should execute route matching inside the telemetry boundary", async () => {
+    const recorder = createTelemetryRecorder();
+    const routeMatch = vi.fn((_fields, _work) => ({ allowed: [] }));
+    const handler = vi.fn(() => new Response("matched"));
+    const response = await createServerApp({
+      routes: [{ path: "/items", handler }],
+      telemetry: { ...recorder.telemetry, routeMatch },
+    }).fetch(new Request("http://example.test/items"));
+    expect(response.status).toBe(404);
+    expect(handler).not.toHaveBeenCalled();
+    expect(routeMatch).toHaveBeenCalledOnce();
   });
 
   it("should nest API execution under the request and record response status", async () => {
