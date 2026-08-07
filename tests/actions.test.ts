@@ -133,7 +133,10 @@ describe("page actions", () => {
     const response = await actionApp(actions).fetch(
       new Request("http://example.test/items/42", {
         method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
+        headers: {
+          accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,*/*;q=0.8",
+          "content-type": "application/x-www-form-urlencoded",
+        },
         body: new URLSearchParams({ _askr_action: save.id, name: "x" }),
       }),
     );
