@@ -20,6 +20,7 @@ export function cloneResponse(response: Response): Response {
 
 export function addHeaders(response: Response, additions: HeadersInit): Response {
   const next = cloneResponse(response);
-  new Headers(additions).forEach((value, key) => next.headers.set(key, value));
+  const headers = additions instanceof Headers ? additions : new Headers(additions);
+  headers.forEach((value, key) => next.headers.set(key, value));
   return next;
 }

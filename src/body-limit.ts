@@ -2,6 +2,7 @@ export const DEFAULT_MAX_REQUEST_BYTES = 1_048_576;
 
 const limits = new WeakMap<Request, number>();
 const bodies = new WeakMap<Request, Promise<Uint8Array>>();
+const decoder = new TextDecoder();
 
 export function hasBufferedRequestBody(request: Request): boolean {
   return bodies.has(request);
@@ -24,7 +25,7 @@ export function validateMaxRequestBytes(value: number, label = "maxRequestBytes"
 }
 
 export function configureRequestLimit(request: Request, maximum: number): void {
-  limits.set(request, validateMaxRequestBytes(maximum));
+  limits.set(request, maximum);
 }
 
 export function requestLimit(request: Request): number {
@@ -69,6 +70,7 @@ export function readRequestBytes(
     } finally {
       reader.releaseLock();
     }
+    if (chunks.length === 1) return chunks[0]!;
     const output = new Uint8Array(length);
     let offset = 0;
     for (const chunk of chunks) {
@@ -85,7 +87,7 @@ export async function readRequestText(
   request: Request,
   maximum = requestLimit(request),
 ): Promise<string> {
-  return new TextDecoder().decode(await readRequestBytes(request, maximum));
+  return decoder.decode(await readRequestBytes(request, maximum));
 }
 
 export async function readRequestFormData(

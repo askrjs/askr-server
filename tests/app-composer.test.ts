@@ -1,5 +1,5 @@
 import { createRouteRegistry, route } from "@askrjs/askr/router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createAskrApp } from "../src/askr/index";
 import { safeRedirect } from "../src/auth";
 import { requireUser } from "@askrjs/auth";
@@ -85,6 +85,40 @@ describe("Askr application composer", () => {
     expect(page.headers.get("location")).toBe("/login?next=%2F");
     expect(mappedDenials).toBe(1);
   });
+
+  it("should memoize a synchronous close failure", async () => {
+    const error = new Error("close failed");
+    const close = vi.fn(() => {
+      throw error;
+    });
+    const app = createAskrApp({
+      name: "Test",
+      version: "1",
+      dependencies: {},
+      pages: createRouteRegistry(() => route("/", () => "page")),
+      close,
+    });
+    const first = app.close();
+    const second = app.close();
+    expect(second).toBe(first);
+    await expect(first).rejects.toBe(error);
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it.each(["//api", "/api//v1", "/api?version=1", "/api/{tenant}", "/api/*"])(
+    "should reject invalid API prefix %s during construction",
+    (prefix) => {
+      expect(() =>
+        createAskrApp({
+          name: "Test",
+          version: "1",
+          dependencies: {},
+          pages: createRouteRegistry(() => route("/", () => "page")),
+          api: { prefix },
+        }),
+      ).toThrow(/API prefix|Invalid route path/);
+    },
+  );
 });
 
 describe("safeRedirect", () => {

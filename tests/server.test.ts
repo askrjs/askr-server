@@ -10,6 +10,7 @@ import {
 } from "../src/index";
 import { requireAnonymous, requireRole, requireUser, type AuthContext } from "@askrjs/auth";
 import { requestId, securityHeaders } from "../src/middleware/index";
+import { enforceHttps } from "../src/middleware/enforce-https";
 
 const authenticated: AuthContext = {
   authenticated: true,
@@ -77,6 +78,28 @@ describe("HTTP responses", () => {
 });
 
 describe("router", () => {
+  it.each([
+    "relative",
+    "/prefix{id}",
+    "/items/{}",
+    "/items/{*rest}/details",
+    "/items/{id}/{id}",
+    "//",
+    "/items//details",
+    "/items?mode=test",
+  ])("should reject malformed route path %s during registration", (path) => {
+    expect(() => createRouter().get(path, () => text("invalid"))).toThrow(/Invalid route path/);
+  });
+
+  it.each(["", "not a method", [] as string[], ["GET", "get"]])(
+    "should reject invalid route methods %j during registration",
+    (method) => {
+      expect(() => createRouter().route(method, "/items", () => text("invalid"))).toThrow(
+        /route|Route/,
+      );
+    },
+  );
+
   it("should prefer static then parameter then wildcard routes", async () => {
     const router = createRouter();
     router.get("/objects/{*key}", ({ params }) => text(`wildcard:${params.key}`));
@@ -92,6 +115,22 @@ describe("router", () => {
     expect(await (await app.fetch(new Request("http://example.test/objects/a/b"))).text()).toBe(
       "wildcard:a/b",
     );
+  });
+
+  it("should not collapse empty request path segments", async () => {
+    const router = createRouter();
+    router.get("/objects/current", () => text("matched"));
+    const response = await createServerApp(router).fetch(
+      new Request("http://example.test/objects//current"),
+    );
+    expect(response.status).toBe(404);
+  });
+
+  it("should not match a double-slash request path as the root route", async () => {
+    const router = createRouter();
+    router.get("/", () => text("root"));
+    const response = await createServerApp(router).fetch(new Request("http://example.test//"));
+    expect(response.status).toBe(404);
   });
 
   it("should use registration order only for equal-specificity routes", async () => {
@@ -213,6 +252,18 @@ describe("router", () => {
 });
 
 describe("middleware composition", () => {
+  it("should recognize a case-insensitive forwarded HTTPS protocol", async () => {
+    const app = createServerApp({
+      middleware: [enforceHttps({ trustProxy: true })],
+      routes: [{ path: "/", handler: () => text("secure") }],
+    });
+    const response = await app.fetch(
+      new Request("http://example.test/", { headers: { "x-forwarded-proto": "HTTPS" } }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("secure");
+  });
+
   it("should support nested synchronous and asynchronous middleware", async () => {
     const order: string[] = [];
     const app = createServerApp({

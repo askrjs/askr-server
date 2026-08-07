@@ -1,5 +1,6 @@
 import type { Params } from "./contracts";
 import { hasBufferedRequestBody, readRequestFormData, readRequestText } from "./body-limit";
+import { contentType } from "./http/media-types";
 
 export class BindingError extends Error {
   readonly status = 400;
@@ -54,8 +55,20 @@ function queryValues(query: URLSearchParams): Record<string, string | string[]> 
   return collectValues(query) as Record<string, string | string[]>;
 }
 
-function mediaType(request: Request): string | undefined {
-  return request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+function overwriteValues(output: Record<string, unknown>, values: Record<string, unknown>): void {
+  for (const key of Object.keys(values)) {
+    const value = values[key];
+    if (key === "__proto__") {
+      Object.defineProperty(output, key, {
+        configurable: true,
+        enumerable: true,
+        value,
+        writable: true,
+      });
+    } else {
+      output[key] = value;
+    }
+  }
 }
 
 function canHaveBody(request: Request): boolean {
@@ -118,7 +131,7 @@ async function multipartBody(
 
 async function readBody(request: Request): Promise<Record<string, unknown>> {
   if (!canHaveBody(request)) return {};
-  const type = mediaType(request);
+  const type = contentType(request.headers.get("content-type"));
   if (!type) return {};
   if (type === "application/json" || type.endsWith("+json")) return jsonBody(request);
   if (type === "application/x-www-form-urlencoded") return urlEncodedBody(request);
@@ -130,9 +143,9 @@ export async function bind<T extends object = Record<string, unknown>>(
   context: BindContext,
 ): Promise<T> {
   const body = await readBody(context.request);
-  return {
-    ...body,
-    ...queryValues(context.query),
-    ...context.params,
-  } as T;
+  const output = Object.getPrototypeOf(body) === Object.prototype ? body : {};
+  if (output !== body) overwriteValues(output, body);
+  overwriteValues(output, queryValues(context.query));
+  overwriteValues(output, context.params);
+  return output as T;
 }

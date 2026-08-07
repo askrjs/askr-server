@@ -27,7 +27,7 @@ const save = Object.freeze({
 });
 
 function actionApp(
-  actionRegistry: ActionRegistry<{ store: string }>,
+  actionRegistry: ActionRegistry,
   options: { redirect?: boolean; auth?: AuthContext } = {},
 ) {
   const registry = createRouteRegistry(() => {
@@ -45,6 +45,35 @@ function actionApp(
 }
 
 describe("page actions", () => {
+  it("should ignore an enhanced response media type explicitly excluded by Accept", async () => {
+    const descriptor = Object.freeze({
+      id: "save-item",
+      input: schema.object({ name: schema.string() }),
+      invalidates: Object.freeze([]),
+    });
+    const actions = defineServerActions(
+      { dependencies: {}, csrf: false },
+      handleAction(descriptor, () => ({ result: { saved: true } })),
+    );
+    const registry = createRouteRegistry(() =>
+      route("/items", () => "items", { actions: [descriptor] }),
+    );
+    const response = await createServerApp({
+      fallback: createAskrPageHandler({ registry, actions }),
+    }).fetch(
+      new Request("https://example.test/items", {
+        method: "POST",
+        headers: {
+          accept: "application/vnd.askr.action+json;q=0, text/html;q=1",
+          "content-type": "application/json",
+          "x-askr-action": descriptor.id,
+        },
+        body: JSON.stringify({ name: "value" }),
+      }),
+    );
+    expect(response.status).toBe(303);
+  });
+
   it("should capture dependencies once and pass matched route context", async () => {
     const dependencies = { store: "store-1" };
     const handler = vi.fn((_context, input, deps) => ({ result: { input, store: deps.store } }));

@@ -23,7 +23,7 @@ function pascalToken(value: string): string {
     .join("");
 }
 
-function inferredOperationId(method: string, path: string): string {
+export function inferredOperationId(method: string, path: string): string {
   const tokens = path.split("/").filter(Boolean);
   const suffix = tokens.length
     ? tokens
@@ -158,8 +158,17 @@ export function createDocument<Dependencies>(
     },
     additionalProperties: true,
   });
-  for (const route of routes) {
-    route.operationId ??= inferredOperationId(route.method, route.path);
+  const finalizedRoutes = routes.map((source) => {
+    const route: RouteState<Dependencies> = {
+      ...source,
+      operationId: source.operationId ?? inferredOperationId(source.method, source.path),
+      tags: [...source.tags],
+      parameters: [...source.parameters],
+      bodies: [...source.bodies],
+      responses: [...source.responses],
+      middleware: [...source.middleware],
+      errors: [...source.errors],
+    };
     if (options.metadata !== "authored" && !route.responses.some((item) => item.explicit)) {
       route.responses.push({
         status: "default",
@@ -168,11 +177,12 @@ export function createDocument<Dependencies>(
       });
     }
     addAutomaticAccessResponses(route);
-  }
-  validateApi(routes, schemas, options);
+    return route;
+  });
+  validateApi(finalizedRoutes, schemas, options);
 
   const paths = new Map<string, Map<string, Record<string, unknown>>>();
-  for (const route of routes) {
+  for (const route of finalizedRoutes) {
     const methods = paths.get(route.path) ?? new Map();
     methods.set(route.method.toLowerCase(), operation(route));
     paths.set(route.path, methods);

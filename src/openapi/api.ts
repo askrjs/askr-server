@@ -1,5 +1,6 @@
 import { createRouter } from "../router/router";
-import { createDocument } from "./document";
+import { createDocument, inferredOperationId } from "./document";
+import { operationBodies, operationParameters } from "./operation-definition";
 import type {
   ApiDefinition,
   ApiGroup,
@@ -15,9 +16,7 @@ import type {
   ApiOperation,
   ApiOptions,
   GroupState,
-  InputDocumentation,
   JsonSchema,
-  ParameterDefinition,
   RouteState,
   Schema,
 } from "./types";
@@ -52,80 +51,6 @@ function addGroupParameter(
     ...(location === "path" ? { required: true } : {}),
   });
 }
-function projectedSchema(jsonSchema: unknown): Pick<Schema, "jsonSchema"> {
-  return { jsonSchema: jsonSchema as JsonSchema };
-}
-function operationParameters(
-  input: ApiOperation<unknown>["input"],
-  documentation: InputDocumentation | undefined,
-  errors: string[],
-): ParameterDefinition[] {
-  const output: ParameterDefinition[] = [];
-  const sources = [
-    ["params", "path"],
-    ["query", "query"],
-    ["headers", "header"],
-  ] as const;
-  for (const [source, location] of sources) {
-    const declaration = input?.[source];
-    const metadata = documentation?.[source];
-    if (!declaration) {
-      if (metadata && Object.keys(metadata).length)
-        errors.push(`documentation for undeclared ${source}`);
-      continue;
-    }
-    const properties = declaration.jsonSchema.properties;
-    if (!properties || typeof properties !== "object" || Array.isArray(properties)) {
-      errors.push(`${source} input schema must expose object properties`);
-      continue;
-    }
-    const required = new Set(
-      Array.isArray(declaration.jsonSchema.required)
-        ? declaration.jsonSchema.required.filter(
-            (value): value is string => typeof value === "string",
-          )
-        : [],
-    );
-    for (const [name, jsonSchema] of Object.entries(properties as Record<string, unknown>)) {
-      const docs = metadata?.[name];
-      output.push({
-        name,
-        in: location,
-        schema: projectedSchema(jsonSchema),
-        ...docs,
-        ...(location === "path" || required.has(name) ? { required: true } : {}),
-      });
-    }
-    for (const name of Object.keys(metadata ?? {})) {
-      if (!Object.hasOwn(properties, name))
-        errors.push(`documentation for undeclared ${source}.${name}`);
-    }
-  }
-  return output;
-}
-
-function operationBodies(
-  operation: ApiOperation<unknown>,
-  errors: string[],
-): RouteState<unknown>["bodies"] {
-  const body = operation.input?.body;
-  if (!body) {
-    if (operation.documentation?.body) errors.push("documentation for undeclared body");
-    return [];
-  }
-  const mediaTypes = [
-    ...new Set(body.mediaTypes.map((value) => value.trim().toLowerCase())),
-  ].filter(Boolean);
-  if (mediaTypes.length === 0) errors.push("body input must declare at least one media type");
-  if (mediaTypes.length !== body.mediaTypes.length)
-    errors.push("body input media types must be unique and non-empty");
-  return mediaTypes.map((mediaType) => ({
-    mediaType,
-    schema: body.schema,
-    ...operation.documentation?.body,
-  }));
-}
-
 function createGroup<Dependencies, Prefix extends string>(
   state: GroupState,
   routes: RouteState<Dependencies>[],
@@ -155,7 +80,11 @@ function createGroup<Dependencies, Prefix extends string>(
       typeof handler === "function"
         ? (handler as ApiHandler<Dependencies>)
         : async (context, dependencies) => {
-            const result = await readOperationInput(context, handler.input ?? {});
+            const result = await readOperationInput(
+              context,
+              handler.input ?? {},
+              handler.documentation?.body?.required === true,
+            );
             if (!result.success) {
               return result.status === 400
                 ? context.badRequest(result.detail)
@@ -188,6 +117,7 @@ function createGroup<Dependencies, Prefix extends string>(
     routeState = {
       method: method.toUpperCase(),
       path: joinPath(state.prefix, path),
+      operationId: inferredOperationId(method, joinPath(state.prefix, path)),
       handler: runtimeHandler,
       tags: [...state.tags],
       parameters: canonicalParameters,
@@ -268,7 +198,8 @@ export function createApi<Dependencies = undefined>(
         router.route(
           route.method,
           route.path,
-          async (context) => {
+          (context) => {
+            if (!context.telemetry) return route.handler(context, dependencies!);
             const requestId =
               typeof context.state.requestId === "string" ? context.state.requestId : undefined;
             const traceId =
@@ -277,11 +208,9 @@ export function createApi<Dependencies = undefined>(
                 : context.telemetry?.traceId();
             const operation = route.operationId ?? `${route.method} ${route.path}`;
             const fields = { requestId, traceId, route: route.path, operation };
-            const execute = () => route.handler(context, dependencies!);
-            const response = await (context.telemetry
-              ? context.telemetry.apiOperation(fields, execute)
-              : execute());
-            return response;
+            return context.telemetry.apiOperation(fields, () =>
+              route.handler(context, dependencies!),
+            );
           },
           {
             auth: route.access?.requirement,

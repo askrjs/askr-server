@@ -11,13 +11,13 @@ import type {
 import { challenge, forbidden, methodNotAllowed, notFound } from "./http/responses";
 import type { MatchResult } from "./router/matcher";
 
-async function runMiddleware(
+function runMiddleware(
   middleware: readonly Middleware[],
   context: ServerContext,
   terminal: Handler,
-): Promise<Response> {
+): Response | Promise<Response> {
   let index = -1;
-  const dispatch = async (nextIndex: number): Promise<Response> => {
+  const dispatch = (nextIndex: number): Response | Promise<Response> => {
     if (nextIndex <= index)
       throw new Error("next() may only be called once per middleware invocation");
     index = nextIndex;
@@ -39,18 +39,33 @@ async function denial(
     : forbidden(decision.reason === "already_authenticated" ? "Already authenticated" : undefined);
 }
 
-async function executeRoute(
+function invokeRoute(route: ApiRoute, context: ServerContext): Response | Promise<Response> {
+  return route.upgrade ? context.upgrade(route.upgrade) : route.handler(context);
+}
+
+async function executeAuthorizedRoute(
   route: ApiRoute,
   context: ServerContext,
   onAccessDenied?: AccessDeniedHandler,
 ): Promise<Response> {
-  if (route.auth) {
-    const response = await denial(await route.auth(context.auth), context, onAccessDenied);
-    if (response) return response;
-  }
-  return runMiddleware(route.middleware ?? [], context, async () =>
-    route.upgrade ? context.upgrade(route.upgrade) : route.handler(context),
-  );
+  const response = await denial(await route.auth!(context.auth), context, onAccessDenied);
+  if (response) return response;
+  const middleware = route.middleware;
+  return middleware?.length
+    ? runMiddleware(middleware, context, () => invokeRoute(route, context))
+    : invokeRoute(route, context);
+}
+
+function executeRoute(
+  route: ApiRoute,
+  context: ServerContext,
+  onAccessDenied?: AccessDeniedHandler,
+): Response | Promise<Response> {
+  if (route.auth) return executeAuthorizedRoute(route, context, onAccessDenied);
+  const middleware = route.middleware;
+  return middleware?.length
+    ? runMiddleware(middleware, context, () => invokeRoute(route, context))
+    : invokeRoute(route, context);
 }
 
 function probeFor(pathname: string, probes?: ProbeOptions): ProbeHandler | undefined {
@@ -59,10 +74,6 @@ function probeFor(pathname: string, probes?: ProbeOptions): ProbeHandler | undef
   if (pathname === "/startupz") return probes?.startupz;
   if (pathname === "/targetz") return probes?.targetz;
   return undefined;
-}
-
-function isProbe(pathname: string): boolean {
-  return ["/livez", "/readyz", "/startupz", "/targetz"].includes(pathname);
 }
 
 async function runProbe(
@@ -91,35 +102,37 @@ function withoutHeadBody(response: Response, request: Request): Response {
     : response;
 }
 
-export function createTerminal(
+function executeTerminal(
   found: MatchResult,
   options: { probes?: ProbeOptions; fallback?: Handler; onAccessDenied?: AccessDeniedHandler },
-): Handler {
-  return async (context) => {
-    let response: Response;
-    if (found.match) {
-      response = await executeRoute(found.match.route, context, options.onAccessDenied);
-    } else if (found.allowed.length) {
-      response =
-        context.request.method === "OPTIONS"
-          ? new Response(null, { status: 204, headers: { allow: found.allowed.join(", ") } })
-          : methodNotAllowed(found.allowed);
-    } else if (
-      (context.request.method === "GET" || context.request.method === "HEAD") &&
-      isProbe(context.url.pathname)
-    ) {
-      response = await runProbe(probeFor(context.url.pathname, options.probes), context);
-    } else {
-      response = options.fallback ? await options.fallback(context) : notFound();
-    }
-    return withoutHeadBody(response, context.request);
-  };
+  context: ServerContext,
+): Response | Promise<Response> {
+  if (found.match) return executeRoute(found.match.route, context, options.onAccessDenied);
+  if (found.allowed.length) {
+    return context.request.method === "OPTIONS"
+      ? new Response(null, { status: 204, headers: { allow: found.allowed.join(", ") } })
+      : methodNotAllowed(found.allowed);
+  }
+  if (
+    (context.request.method === "GET" || context.request.method === "HEAD") &&
+    (context.url.pathname === "/livez" ||
+      context.url.pathname === "/readyz" ||
+      context.url.pathname === "/startupz" ||
+      context.url.pathname === "/targetz")
+  ) {
+    return runProbe(probeFor(context.url.pathname, options.probes), context);
+  }
+  return options.fallback ? options.fallback(context) : notFound();
 }
 
-export function runGlobalMiddleware(
+export async function dispatchRequest(
   middleware: readonly Middleware[],
   context: ServerContext,
-  terminal: Handler,
+  found: MatchResult,
+  options: { probes?: ProbeOptions; fallback?: Handler; onAccessDenied?: AccessDeniedHandler },
 ): Promise<Response> {
-  return runMiddleware(middleware, context, terminal);
+  const response = await (middleware.length
+    ? runMiddleware(middleware, context, () => executeTerminal(found, options, context))
+    : executeTerminal(found, options, context));
+  return withoutHeadBody(response, context.request);
 }

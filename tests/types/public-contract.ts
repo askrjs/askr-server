@@ -57,6 +57,11 @@ type DirectParams = PathParams<"/a/{first}/b/{*rest}">;
 const directParams: DirectParams = { first: "one", rest: "two/three" };
 void directParams;
 
+type EmbeddedBracesAreStatic = PathParams<"/prefix{id}">;
+const embeddedBracesAreStatic: EmbeddedBracesAreStatic = {};
+// @ts-expect-error only whole path segments declare parameters
+void embeddedBracesAreStatic.id;
+
 type Dependencies = { store: { read(id: string): string } };
 const dependent = createApi<Dependencies>({ info: { title: "Dependent", version: "1" } });
 dependent
@@ -175,6 +180,11 @@ const SaveAction = {
   input: schema.object({ name: schema.string() }),
   invalidates: ["items:"],
 } satisfies ActionDescriptor<{ name: string }>;
+const DeleteAction = {
+  id: "delete-item",
+  input: schema.object({ id: schema.integer() }),
+  invalidates: ["items:"],
+} satisfies ActionDescriptor<{ id: number }>;
 const actions = defineServerActions(
   { dependencies: { store: { write: (name: string) => name } }, csrf: false },
   handleAction(SaveAction, (context, input, dependencies) => {
@@ -182,7 +192,12 @@ const actions = defineServerActions(
     input.name satisfies string;
     return { result: dependencies.store.write(input.name) };
   }),
+  handleAction(DeleteAction, (_context, input) => {
+    input.id satisfies number;
+    return { result: input.id > 0 };
+  }),
 );
+actions.entries[0]?.descriptor satisfies ActionDescriptor;
 declare const manifest: RouteManifest;
 // @ts-expect-error page handling consumes the explicit route registry only
 createAskrPageHandler({ manifest, actions });

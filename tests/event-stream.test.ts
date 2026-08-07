@@ -50,4 +50,25 @@ describe("server-sent events", () => {
     expect((await reader.read()).done).toBe(true);
     vi.useRealTimers();
   });
+
+  it("should avoid heartbeat leaks given an already-aborted signal", async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    controller.abort();
+    const events = createEventStream({ signal: controller.signal, heartbeatInterval: 100 });
+    await events.closed;
+    expect(vi.getTimerCount()).toBe(0);
+    expect((await events.response.body!.getReader().read()).done).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("should reject invalid construction options before allocating timers", () => {
+    vi.useFakeTimers();
+    expect(() => createEventStream({ heartbeatInterval: 0 })).toThrow(/heartbeatInterval/);
+    expect(() => createEventStream({ highWaterMark: 0, heartbeatInterval: 100 })).toThrow(
+      /highWaterMark/,
+    );
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
+  });
 });

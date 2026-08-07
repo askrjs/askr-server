@@ -13,9 +13,14 @@ import type {
 import { createApi } from "../openapi/api";
 import type { ApiDefinition, ApiGroup } from "../openapi/public";
 import type { OpenApiDocument, SecurityScheme } from "../openapi/types";
-import { defineServerActions, type ActionEntry, type ActionRegistryOptions } from "./actions";
+import {
+  defineServerActions,
+  type ActionRegistration,
+  type ActionRegistryOptions,
+} from "./actions";
 import { createAskrPageHandler } from "./page-handler";
 import type { CspNonceProvider } from "../csp-nonce";
+import { parseRoutePath } from "../router/path";
 
 export interface AskrApp {
   fetch(request: Request): Promise<Response>;
@@ -48,7 +53,7 @@ export interface AskrAppOptions<Dependencies, P extends Principal = Principal> {
   readonly queryRegistry?: ServerQueryRegistry;
   readonly api?: AskrAppApiOptions<Dependencies>;
   readonly actions?: ActionRegistryOptions & {
-    readonly handlers: readonly ActionEntry<Dependencies, any, any>[];
+    readonly handlers: readonly ActionRegistration<Dependencies>[];
   };
   readonly auth?: AskrAppAuthOptions<P>;
   readonly middleware?: readonly Middleware[];
@@ -64,6 +69,10 @@ function normalizePrefix(value: string | undefined): string {
   const prefix = value ?? "/api";
   if (!prefix.startsWith("/") || prefix === "/" || prefix.endsWith("/")) {
     throw new Error("The API prefix must be an absolute path without a trailing slash.");
+  }
+  const segments = parseRoutePath(prefix);
+  if (segments.some((segment) => segment.kind !== "static")) {
+    throw new Error("The API prefix must contain only static path segments.");
   }
   return prefix;
 }
@@ -113,6 +122,6 @@ export function createAskrApp<Dependencies, P extends Principal = Principal>(
   return Object.freeze({
     fetch: (request: Request) => server.fetch(request),
     toOpenApiDocument: () => api.toOpenApiDocument(),
-    close: () => (closing ??= Promise.resolve(options.close?.(options.dependencies))),
+    close: () => (closing ??= Promise.resolve().then(() => options.close?.(options.dependencies))),
   });
 }

@@ -66,6 +66,7 @@ function addBody<Dependencies>(
   options: BodyOptions = {},
 ): void {
   const normalized = mediaType.trim().toLowerCase();
+  if (!normalized) state.errors.push("request body media type must not be empty");
   if (state.input) {
     state.errors.push(`executable operation input conflicts with request body ${normalized}`);
     return;
@@ -81,7 +82,12 @@ function addResponse<Dependencies>(
   value?: Schema,
   options: ResponseOptions = {},
 ): void {
-  const key = String(status);
+  const source = String(status).trim();
+  const key = /^default$/i.test(source) ? "default" : source.toUpperCase();
+  const mediaType = options.mediaType?.trim().toLowerCase();
+  if (options.mediaType !== undefined && !mediaType) {
+    state.errors.push(`response ${key} media type must not be empty`);
+  }
   if (state.responses.some((response) => response.status === key && response.explicit)) {
     state.errors.push(`duplicate explicit response ${key}`);
   }
@@ -89,7 +95,7 @@ function addResponse<Dependencies>(
     status: key,
     description: options.description ?? responseDescriptions[key] ?? "Response",
     schema: value,
-    mediaType: options.mediaType ?? (value ? "application/json" : undefined),
+    mediaType: mediaType ?? (value ? "application/json" : undefined),
     headers: options.headers,
     examples: options.examples,
     explicit: true,

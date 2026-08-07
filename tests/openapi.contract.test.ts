@@ -4,7 +4,7 @@ import { createServerApp } from "../src/application";
 import { createApi, schema, security } from "../src/openapi/index";
 
 describe("OpenAPI public contract", () => {
-  it("shares route registration between documentation and dependency-injected runtime", async () => {
+  it("should share route registration between documentation and dependency-injected runtime", async () => {
     const dependencies = { users: { find: vi.fn(async (id: string) => ({ id, name: "Ada" })) } };
     const handler = vi.fn(async (ctx, deps: typeof dependencies) =>
       ctx.ok(await deps.users.find(ctx.params.id)),
@@ -61,7 +61,7 @@ describe("OpenAPI public contract", () => {
     });
   });
 
-  it("inherits groups and documents parameters, bodies, examples, and operation metadata", () => {
+  it("should inherit groups and document parameters bodies examples and operation metadata", () => {
     const middleware = vi.fn(async (ctx, next) => {
       ctx.state.inherited = true;
       return next();
@@ -110,7 +110,7 @@ describe("OpenAPI public contract", () => {
     expect(operation.parameters).toHaveLength(4);
   });
 
-  it("aligns access with security and adds overridable Problem responses", async () => {
+  it("should align access with security and add overridable Problem responses", async () => {
     const api = createApi({
       info: { title: "Secure", version: "1" },
       securitySchemes: { bearer: security.httpBearer({ bearerFormat: "JWT" }) },
@@ -142,7 +142,7 @@ describe("OpenAPI public contract", () => {
     expect(response.status).toBe(401);
   });
 
-  it("adds an inferred default response alongside secured access responses", () => {
+  it("should add an inferred default response alongside secured access responses", () => {
     const api = createApi({
       info: { title: "Secure baseline", version: "1" },
       securitySchemes: { bearer: security.httpBearer() },
@@ -157,7 +157,7 @@ describe("OpenAPI public contract", () => {
     });
   });
 
-  it("supports schema composition, constraints, records, literals, and raw schemas", () => {
+  it("should support schema composition constraints records literals and raw schemas", () => {
     const api = createApi({ info: { title: "Schemas", version: "1" } });
     const Base = api.schema(
       "Base",
@@ -190,7 +190,7 @@ describe("OpenAPI public contract", () => {
     ]);
   });
 
-  it("returns a deeply immutable, deterministic document", () => {
+  it("should return a deeply immutable deterministic document", () => {
     const api = createApi({
       info: { title: "Stable", version: "1" },
       "x-service": { name: "users" },
@@ -214,7 +214,7 @@ describe("OpenAPI public contract", () => {
     expect(first["x-service"]).toEqual({ name: "users" });
   });
 
-  it("supports named redirects, remaining server errors, and status ranges", () => {
+  it("should support named redirects remaining server errors and status ranges", () => {
     const api = createApi({ info: { title: "Responses", version: "1" } });
     api
       .get("/responses", (ctx) => ctx.noContent())

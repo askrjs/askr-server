@@ -9,7 +9,8 @@ import type {
   McpServerOptions,
 } from "./types";
 
-const supported = new Set(["2025-11-25", "2025-06-18"]);
+export const supportedProtocolRevisions = ["2025-11-25", "2025-06-18"] as const;
+const supported = new Set<string>(supportedProtocolRevisions);
 const empty = schema.object({});
 
 function contextFor<Dependencies>(
@@ -57,24 +58,30 @@ function initialize<Dependencies>(
   sessions: Map<string, Session>,
 ) {
   const revision = params.protocolVersion;
-  if (typeof revision !== "string" || !supported.has(revision))
-    return failure(id, errorCode.params, "Unsupported protocol version");
-  const client =
-    object(params.clientInfo) &&
-    typeof params.clientInfo.name === "string" &&
-    typeof params.clientInfo.version === "string"
-      ? (params.clientInfo as McpContext["client"])
-      : null;
+  if (typeof revision !== "string")
+    return failure(id, errorCode.params, "Protocol version is required");
+  if (!object(params.capabilities)) {
+    return failure(id, errorCode.params, "Client capabilities are required");
+  }
+  if (
+    !object(params.clientInfo) ||
+    typeof params.clientInfo.name !== "string" ||
+    !params.clientInfo.name.trim() ||
+    typeof params.clientInfo.version !== "string" ||
+    !params.clientInfo.version.trim()
+  ) {
+    return failure(id, errorCode.params, "Client information is required");
+  }
+  const negotiated = supported.has(revision) ? revision : supportedProtocolRevisions[0];
+  const client = params.clientInfo as McpContext["client"];
   const session: Session = {
-    initialized: false,
     client,
-    capabilities: object(params.capabilities) ? params.capabilities : {},
-    revision: revision as McpContext["protocolRevision"],
-    environment: environment as McpRequestEnvironment<unknown>,
+    capabilities: params.capabilities,
+    revision: negotiated as McpContext["protocolRevision"],
   };
   if (environment.sessionId) sessions.set(environment.sessionId, session);
   return success(id, {
-    protocolVersion: revision,
+    protocolVersion: negotiated,
     capabilities: {
       tools: { listChanged: environment.supportsPush === true },
       resources: { listChanged: environment.supportsPush === true },
@@ -94,12 +101,18 @@ function initialize<Dependencies>(
 export function createMcpServer<Dependencies = undefined>(
   options: McpServerOptions,
 ): McpServer<Dependencies> {
+  if (!options.name.trim()) throw new TypeError("MCP server name must not be blank.");
+  if (!options.version.trim()) throw new TypeError("MCP server version must not be blank.");
+  const pageSize = options.pageSize ?? 50;
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1) {
+    throw new TypeError("MCP pageSize must be a positive safe integer.");
+  }
   const registries: Registries = {
     tools: new Map(),
     resources: new Map(),
     templates: [],
     prompts: new Map(),
-    pageSize: Math.max(1, options.pageSize ?? 50),
+    pageSize,
   };
   const sessions = new Map<string, Session>();
   const listeners = new Set<McpRequestEnvironment<Dependencies>>();
@@ -110,6 +123,7 @@ export function createMcpServer<Dependencies = undefined>(
   };
   const api: McpServer<Dependencies> = {
     tool(name, primitiveOptions, handler) {
+      if (registries.tools.has(name)) throw new TypeError(`Duplicate MCP tool ${name}.`);
       registries.tools.set(name, {
         name,
         options: primitiveOptions,
@@ -120,14 +134,19 @@ export function createMcpServer<Dependencies = undefined>(
       return api;
     },
     resource(uri, primitiveOptions, handler) {
+      if (registries.resources.has(uri)) throw new TypeError(`Duplicate MCP resource ${uri}.`);
       registries.resources.set(uri, { uri, options: primitiveOptions, handler });
       return api;
     },
     resourceTemplate(template, primitiveOptions, handler) {
+      if (registries.templates.some((entry) => entry.template === template)) {
+        throw new TypeError(`Duplicate MCP resource template ${template}.`);
+      }
       registries.templates.push({ template, options: primitiveOptions, handler });
       return api;
     },
     prompt(name, primitiveOptions: McpPromptOptions<ObjectSchema>, handler) {
+      if (registries.prompts.has(name)) throw new TypeError(`Duplicate MCP prompt ${name}.`);
       registries.prompts.set(name, {
         name,
         options: primitiveOptions,
@@ -157,10 +176,13 @@ export function createMcpServer<Dependencies = undefined>(
       const params = object(message.params) ? message.params : {};
       let session = environment.sessionId ? sessions.get(environment.sessionId) : undefined;
       try {
-        if (message.method === "initialize")
+        if (message.method === "initialize") {
+          if (notification) return undefined;
+          if (session) return failure(id, errorCode.invalid, "Session is already initialized");
           return initialize(id, params, environment, options, sessions);
+        }
         if (message.method === "notifications/initialized") {
-          if (session) session.initialized = true;
+          if (environment.sessionId && !session) return undefined;
           if (environment.send) listeners.add(environment);
           return undefined;
         }
