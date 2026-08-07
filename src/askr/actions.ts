@@ -5,6 +5,7 @@ import type { Issue } from "@askrjs/schema";
 import type { CookieOptions, Params, ServerContext } from "../contracts";
 import { createCsrfToken } from "../middleware/csrf";
 import { readRequestFormData, readRequestText } from "../body-limit";
+import { accepts } from "../http/media-types";
 import {
   authorizedAction,
   csrfFailure,
@@ -74,8 +75,8 @@ export type ActionExecution =
       readonly fieldErrors: Readonly<Record<string, readonly string[]>>;
     };
 
-export interface ActionRegistry<Dependencies> {
-  readonly entries: readonly ActionEntry<Dependencies>[];
+export interface ActionRegistry {
+  readonly entries: readonly Readonly<{ descriptor: ActionDescriptor }>[];
   csrfToken(context: ServerContext): Promise<string | undefined>;
   execute(
     context: ServerContext,
@@ -90,6 +91,15 @@ export interface ActionEntry<
 > {
   readonly descriptor: ActionDescriptor<Input>;
   readonly handler: ActionHandler<Dependencies, Input, Result>;
+}
+
+export interface ActionRegistration<Dependencies> {
+  readonly descriptor: ActionDescriptor;
+  readonly handler: (
+    context: ActionHandlerContext,
+    input: never,
+    dependencies: Dependencies,
+  ) => ActionOutcome<unknown> | Promise<ActionOutcome<unknown>>;
 }
 
 export interface ServerActionsOptions<Dependencies> extends ActionRegistryOptions {
@@ -109,13 +119,8 @@ function randomSecret(): string {
 }
 
 function requestAcceptsEnvelope(context: ServerContext): boolean {
-  return (
-    context.headers
-      .get("accept")
-      ?.split(",")
-      .some((value) => value.trim().toLowerCase().startsWith("application/vnd.askr.action+json")) ??
-    false
-  );
+  const value = context.headers.get("accept");
+  return value !== null && accepts(value, "application/vnd.askr.action+json");
 }
 
 function appendValue(output: Record<string, unknown>, key: string, value: unknown): void {
@@ -194,8 +199,8 @@ async function readSubmission(
 
 export function defineServerActions<Dependencies>(
   options: ServerActionsOptions<Dependencies>,
-  ...entries: readonly ActionEntry<Dependencies, any, any>[]
-): ActionRegistry<Dependencies> {
+  ...entries: readonly ActionRegistration<Dependencies>[]
+): ActionRegistry {
   const { dependencies } = options;
   const csrf =
     options.csrf === false
@@ -211,11 +216,11 @@ export function defineServerActions<Dependencies>(
   for (const entry of entries) {
     if (handlers.has(entry.descriptor.id))
       throw new Error(`Duplicate action ${entry.descriptor.id}.`);
-    handlers.set(entry.descriptor.id, entry as RegisteredAction<Dependencies>);
+    handlers.set(entry.descriptor.id, entry as unknown as RegisteredAction<Dependencies>);
   }
 
-  const registry: ActionRegistry<Dependencies> = {
-    entries: Object.freeze([...entries]) as readonly ActionEntry<Dependencies>[],
+  const registry: ActionRegistry = {
+    entries: Object.freeze([...entries]),
     async csrfToken(context) {
       if (!csrf) return undefined;
       const session = csrf.sessionId(context);

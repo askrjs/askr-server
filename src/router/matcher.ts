@@ -1,4 +1,6 @@
 import type { ApiRoute, Params } from "../contracts";
+import { routeMethods } from "./method";
+import { parseRoutePath } from "./path";
 
 type Leaf = {
   route: ApiRoute;
@@ -37,12 +39,12 @@ function node(): Node {
   return { static: new Map(), leaves: [] };
 }
 
-function pathSegments(path: string): string[] {
-  return path.split("?", 1)[0].split("/").filter(Boolean);
-}
-
-function parameterName(segment: string): string | undefined {
-  return segment.startsWith("{") && segment.endsWith("}") ? segment.slice(1, -1).trim() : undefined;
+function pathnameSegments(pathname: string): string[] | undefined {
+  if (pathname === "/") return [];
+  const source = pathname.endsWith("/") ? pathname.slice(1, -1) : pathname.slice(1);
+  if (!source) return undefined;
+  const parts = source.split("/");
+  return parts.some((part) => !part) ? undefined : parts;
 }
 
 function parameterChild(parent: Node): Node {
@@ -59,30 +61,26 @@ function wildcardChild(parent: Node, named: boolean): Node {
 function addRoute(root: Node, route: ApiRoute, order: number): void {
   let current = root;
   const names: string[] = [];
-  for (const segment of pathSegments(route.path)) {
-    const name = parameterName(segment);
-    if (segment === "*" || name?.startsWith("*")) {
-      const wildcardName = name?.slice(1) || undefined;
-      if (wildcardName) names.push(wildcardName);
-      current = wildcardChild(current, wildcardName !== undefined);
+  for (const segment of parseRoutePath(route.path)) {
+    if (segment.kind === "wildcard") {
+      if (segment.name) names.push(segment.name);
+      current = wildcardChild(current, segment.name !== undefined);
       break;
     }
-    if (name !== undefined) {
-      names.push(name);
+    if (segment.kind === "parameter") {
+      names.push(segment.name);
       current = parameterChild(current);
       continue;
     }
-    const existing = current.static.get(segment);
+    const existing = current.static.get(segment.value);
     if (existing) current = existing;
     else {
       const child = node();
-      current.static.set(segment, child);
+      current.static.set(segment.value, child);
       current = child;
     }
   }
-  const methods = (
-    typeof route.method === "string" ? [route.method] : (route.method ?? ["GET"])
-  ).map((method) => method.toUpperCase());
+  const methods = routeMethods(route.method);
   current.leaves.push({ route, methods, order, parameterNames: names });
 }
 
@@ -203,7 +201,8 @@ export function createMatcher(routes: readonly ApiRoute[]): CompiledMatcher {
     match(pathname, method) {
       const normalizedMethod = method.toUpperCase();
       const candidates: Candidate[] = [];
-      collect(root, pathSegments(pathname), 0, [], [], candidates);
+      const parts = pathnameSegments(pathname);
+      if (parts) collect(root, parts, 0, [], [], candidates);
       candidates.sort((left, right) => compareForMethod(normalizedMethod, left, right));
       const candidate = candidates.find((value) => supports(value.leaf, normalizedMethod));
       return {

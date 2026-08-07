@@ -19,7 +19,7 @@ export interface AskrPageHandlerOptions {
   auth?: RouteAuthOptions;
   queryRegistry?: ServerQueryRegistry;
   seed?: number;
-  actions?: ActionRegistry<any>;
+  actions?: ActionRegistry;
   cspNonce?: CspNonceProvider;
 }
 

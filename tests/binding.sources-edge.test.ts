@@ -9,7 +9,7 @@ function echoApp(method: string | readonly string[] = "POST", path = "/items/{id
 }
 
 describe("model binding source edges", () => {
-  it("preserves empty, bare, encoded, null-byte, and case-sensitive query keys", async () => {
+  it("should preserve empty bare encoded null-byte and case-sensitive query keys", async () => {
     const response = await echoApp("GET").fetch(
       new Request(
         "http://example.test/items/1?empty=&bare&plus=hello+world&unicode=%E2%9C%93&nul=%00&case=lower&Case=upper",
@@ -27,14 +27,14 @@ describe("model binding source edges", () => {
     });
   });
 
-  it("preserves three or more repeated query values in insertion order", async () => {
+  it("should preserve three or more repeated query values in insertion order", async () => {
     const response = await echoApp("GET").fetch(
       new Request("http://example.test/items/1?tag=first&tag=&tag=third&tag=fourth"),
     );
     await expect(response.json()).resolves.toMatchObject({ tag: ["first", "", "third", "fourth"] });
   });
 
-  it("replaces an entire body value at each later source boundary", async () => {
+  it("should replace an entire body value at each later source boundary", async () => {
     const response = await echoApp("POST", "/items/{value}").fetch(
       new Request("http://example.test/items/route?value=query-one&value=query-two&body-only=yes", {
         method: "POST",
@@ -48,7 +48,7 @@ describe("model binding source edges", () => {
     });
   });
 
-  it("excludes every request header while leaving explicit access available", async () => {
+  it("should exclude every request header while leaving explicit access available", async () => {
     const app = createServerApp({
       routes: [
         {
@@ -83,7 +83,7 @@ describe("model binding source edges", () => {
     });
   });
 
-  it("safely binds prototype-sensitive keys from JSON, query, and route sources", async () => {
+  it("should safely bind prototype-sensitive keys from JSON query and route sources", async () => {
     const app = echoApp("POST", "/items/{__proto__}/{constructor}");
     const response = await app.fetch(
       new Request(
@@ -104,7 +104,7 @@ describe("model binding source edges", () => {
     expect(({} as Record<string, unknown>)["polluted"]).toBeUndefined();
   });
 
-  it("returns an ordinary plain object even though collection dictionaries are prototype-free", async () => {
+  it("should return an ordinary plain object even though collection dictionaries are prototype-free", async () => {
     const app = createServerApp({
       routes: [
         {
@@ -128,7 +128,7 @@ describe("model binding source edges", () => {
     });
   });
 
-  it("binds query and route values on GET without attempting body parsing", async () => {
+  it("should bind query and route values on GET without attempting body parsing", async () => {
     const request = new Request("http://example.test/items/1?q=yes", {
       headers: { "content-type": "application/json" },
     });
@@ -139,7 +139,7 @@ describe("model binding source edges", () => {
     expect(request.bodyUsed).toBe(false);
   });
 
-  it("binds query and route values on HEAD without attempting body parsing", async () => {
+  it("should bind query and route values on HEAD without attempting body parsing", async () => {
     const request = new Request("http://example.test/items/1?q=yes", {
       method: "HEAD",
       headers: { "content-type": "application/json" },
@@ -153,7 +153,7 @@ describe("model binding source edges", () => {
 });
 
 describe("model binding cache edges", () => {
-  it("shares one promise and object across concurrent calls", async () => {
+  it("should share one promise and object across concurrent calls", async () => {
     const app = createServerApp({
       routes: [
         {
@@ -184,7 +184,7 @@ describe("model binding cache edges", () => {
     ).resolves.toEqual({ samePromise: true, sameObject: true });
   });
 
-  it("shares the cached object between route middleware and the handler", async () => {
+  it("should share the cached object between route middleware and the handler", async () => {
     const app = createServerApp({
       routes: [
         {
@@ -216,7 +216,7 @@ describe("model binding cache edges", () => {
     ).resolves.toEqual({ identical: true, value: { body: true, q: "yes" } });
   });
 
-  it("preserves mutations because repeated calls return the same model object", async () => {
+  it("should preserve mutations because repeated calls return the same model object", async () => {
     const app = createServerApp({
       routes: [
         {
@@ -235,7 +235,7 @@ describe("model binding cache edges", () => {
     ).resolves.toEqual({ q: "yes", added: "later" });
   });
 
-  it("caches a failed binding promise and rejection object", async () => {
+  it("should cache a failed binding promise and rejection object", async () => {
     const app = createServerApp({
       routes: [
         {

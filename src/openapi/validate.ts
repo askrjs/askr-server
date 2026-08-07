@@ -1,4 +1,5 @@
 import type { ApiOptions, JsonSchema, RouteState, Schema } from "./types";
+import { parseRoutePath } from "../router/path";
 
 const componentName = /^[A-Za-z0-9._-]+$/;
 const operationId = /^[A-Za-z][A-Za-z0-9._-]*$/;
@@ -67,6 +68,11 @@ export function validateApi<Dependencies>(
   for (const route of routes) {
     const label = `${route.method} ${route.path}`;
     errors.push(...route.errors.map((error) => `${label}: ${error}`));
+    try {
+      parseRoutePath(route.path);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
     if (route.path.includes("*")) errors.push(`${label}: wildcard paths are not supported`);
     if (options.metadata === "authored" && !route.operationIdExplicit)
       errors.push(`${label}: operationId is required`);
@@ -100,6 +106,7 @@ export function validateApi<Dependencies>(
     }
     const parameterKeys = new Set<string>();
     for (const parameter of route.parameters) {
+      if (!parameter.name.trim()) errors.push(`${label}: parameter name must not be blank`);
       const key = `${parameter.in}:${parameter.name.toLowerCase()}`;
       if (parameterKeys.has(key))
         errors.push(`${label}: duplicate parameter ${parameter.in} ${parameter.name}`);
@@ -108,6 +115,12 @@ export function validateApi<Dependencies>(
     for (const response of route.responses) {
       if (!statusCode.test(response.status))
         errors.push(`${label}: invalid response status ${response.status}`);
+      if (!response.description.trim()) {
+        errors.push(`${label}: response ${response.status} description must not be blank`);
+      }
+      if (response.schema && !response.mediaType) {
+        errors.push(`${label}: response ${response.status} schema requires a media type`);
+      }
     }
     for (const requirement of route.access?.security ?? []) {
       for (const name of Object.keys(requirement)) {

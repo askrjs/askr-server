@@ -172,4 +172,65 @@ describe("OpenAPI executable operations", () => {
       "executable operation input conflicts with query parameter page",
     );
   });
+
+  it("should require an executable request body when its public contract requires one", async () => {
+    const api = createApi({ info: { title: "Inputs", version: "1" } });
+    const handler = vi.fn((context) => context.ok({ ok: true }));
+    const route = api.post("/items", {
+      input: {
+        body: {
+          schema: schema.object({ name: schema.string() }),
+          mediaTypes: [" APPLICATION/JSON "],
+        },
+      },
+      documentation: { body: { required: true } },
+      handler,
+    });
+    finish(route);
+
+    const response = await createServerApp(api.createRouter()).fetch(
+      new Request("http://example.test/items", { method: "POST" }),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      detail: "A request body is required for this operation.",
+    });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("should validate status ranges and media types case-insensitively", async () => {
+    const api = createApi({
+      info: { title: "Responses", version: "1" },
+      validateResponses: true,
+    });
+    api
+      .get("/items", {
+        handler: () =>
+          new Response(JSON.stringify({ ok: "not-boolean" }), {
+            status: 201,
+            headers: { "content-type": "Application/JSON; charset=utf-8" },
+          }),
+      })
+      .response("2xx", schema.object({ ok: schema.boolean() }), {
+        mediaType: " Application/JSON ",
+      });
+    const response = await createServerApp(api.createRouter()).fetch(
+      new Request("http://example.test/items"),
+    );
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({
+      detail: "Operation response did not match its declared schema.",
+    });
+  });
+
+  it("should reject executable body media types unsupported by its runtime", () => {
+    const api = createApi({ info: { title: "Inputs", version: "1" } });
+    api
+      .post("/items", {
+        input: { body: { schema: schema.string(), mediaTypes: ["text/plain"] } },
+        handler: (context) => context.ok(),
+      })
+      .ok();
+    expect(() => api.createRouter()).toThrow(/text\/plain is not supported at runtime/);
+  });
 });

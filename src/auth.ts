@@ -1,10 +1,14 @@
 import type { AuthContext, Principal } from "@askrjs/auth";
-interface TokenIssuer<P extends Principal> {
+import { authSchema, credentialsSchema, successfulAuthSchema } from "./auth-schemas";
+import type { CookieOptions, ServerContext } from "./contracts";
+import { accepts } from "./http/media-types";
+import type { ApiDefinition } from "./openapi/public";
+import { readOperationInput } from "./openapi/request-input";
+import type { Schema } from "./openapi/types";
+
+export interface TokenIssuer<P extends Principal> {
   issue(principal: Omit<P, "id"> & { subject: string }): Promise<string>;
 }
-import type { CookieOptions, ServerContext } from "./contracts";
-import type { ApiDefinition } from "./openapi/public";
-import type { Schema } from "./openapi/types";
 
 export interface SafeRedirectOptions {
   readonly allowHash?: boolean;
@@ -52,6 +56,7 @@ export class AuthRouteError extends Error {
     message?: string,
   ) {
     super(message);
+    this.name = "AuthRouteError";
   }
 }
 
@@ -70,6 +75,7 @@ export interface AuthRouteOptions<P extends Principal = Principal> {
     operation: "register" | "authenticate",
     normalizedEmail: string,
   ): boolean | Promise<boolean>;
+  revoke?(context: ServerContext): void | Promise<void>;
   redirect?: (
     context: ServerContext,
     operation: "register" | "authenticate",
@@ -77,55 +83,21 @@ export interface AuthRouteOptions<P extends Principal = Principal> {
   ) => string | undefined;
 }
 
-const credentialsSchema: Schema = {
-  jsonSchema: {
-    type: "object",
-    required: ["email", "password"],
-    properties: {
-      email: { type: "string", format: "email" },
-      password: { type: "string", minLength: 4, maxLength: 128 },
-    },
-    additionalProperties: false,
-  },
-  safeParse(value) {
-    const body = value as Record<string, unknown> | null;
-    const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
-    const password = typeof body?.password === "string" ? body.password : "";
-    const issues: Array<{ path: string[]; message: string; code: string }> = [];
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      issues.push({ path: ["email"], message: "Email is invalid.", code: "invalid_email" });
-    if (password.length < 4 || password.length > 128)
-      issues.push({
-        path: ["password"],
-        message: "Password must be between 4 and 128 characters.",
-        code: "invalid_length",
-      });
-    return issues.length
-      ? { success: false, issues }
-      : { success: true, data: { email, password } };
-  },
-};
-const authSchema: Schema = {
-  jsonSchema: { type: "object" },
-  safeParse: (data) => ({ success: true, data }),
-};
-
 function sameOrigin(context: ServerContext): boolean {
   const origin = context.headers.get("origin");
   return origin !== null && origin === context.url.origin;
 }
 async function credentials(context: ServerContext): Promise<AuthCredentials | Response> {
-  let value: unknown;
-  try {
-    value = await context.bind();
-  } catch {
-    return context.unprocessableEntity("Email and password are required.");
-  }
-  const parsed = credentialsSchema.safeParse(value);
-  return parsed.success
-    ? (parsed.data as AuthCredentials)
+  const result = await readOperationInput(
+    context,
+    { body: { schema: credentialsSchema, mediaTypes: ["application/json"] } },
+    true,
+  );
+  if (result.success) return result.data.body as AuthCredentials;
+  return result.status === 400
+    ? context.badRequest(result.detail)
     : context.problem(422, "Email or password is invalid.", {
-        extensions: { issues: parsed.issues },
+        extensions: { issues: result.issues },
       });
 }
 function publicAuth(context: AuthContext): AuthContext {
@@ -144,33 +116,31 @@ function success<P extends Principal>(
   principal: P,
   status: 200 | 201,
 ): Promise<Response> {
-  return options.issuer
-    .issue({ ...principal, subject: principal.subject ?? principal.id })
-    .then((token) => {
-      const location = options.redirect?.(context, operation, principal);
-      const response =
-        location && context.headers.get("accept")?.includes("text/html")
-          ? context.redirect(location, 303)
-          : context.json(
-              { authenticated: true, principal, session: null, tenant: null },
-              { status },
-            );
-      const { name, ...configuredCookie } = options.cookie;
-      const cookie = {
-        httpOnly: true,
-        sameSite: "lax" as const,
-        path: "/",
-        ...configuredCookie,
-        secure: configuredCookie.secure ?? true,
-      };
-      return context.setCookie(response, name, token, cookie);
-    });
+  const { id, ...claims } = principal;
+  return options.issuer.issue({ ...claims, subject: principal.subject ?? id }).then((token) => {
+    const location = options.redirect?.(context, operation, principal);
+    const accept = context.headers.get("accept");
+    const response =
+      location && accept && accepts(accept, "text/html")
+        ? context.redirect(location, 303)
+        : context.json({ authenticated: true, principal, session: null, tenant: null }, { status });
+    const { name, ...configuredCookie } = options.cookie;
+    const cookie = {
+      httpOnly: true,
+      sameSite: "lax" as const,
+      path: "/",
+      ...configuredCookie,
+      secure: configuredCookie.secure ?? true,
+    };
+    return context.setCookie(response, name, token, cookie);
+  });
 }
 
 export function registerAuthRoutes<Dependencies, P extends Principal>(
   api: Pick<ApiDefinition<Dependencies>, "group">,
   options: AuthRouteOptions<P>,
 ): void {
+  const successfulAuth = successfulAuthSchema(options.principalSchema);
   const group = api.group("/auth/v1").tags("Authentication");
   const mutation =
     (operation: "register" | "authenticate", status: 200 | 201) =>
@@ -198,8 +168,9 @@ export function registerAuthRoutes<Dependencies, P extends Principal>(
     .operationId("registerAccount")
     .summary("Register an account")
     .jsonBody(credentialsSchema, { required: true })
-    .created(options.principalSchema)
+    .created(successfulAuth)
     .seeOther()
+    .badRequest()
     .forbidden()
     .conflict()
     .unprocessableEntity()
@@ -214,16 +185,18 @@ export function registerAuthRoutes<Dependencies, P extends Principal>(
     .operationId("createAuthSession")
     .summary("Create an authenticated session")
     .jsonBody(credentialsSchema, { required: true })
-    .ok(options.principalSchema)
+    .ok(successfulAuth)
     .seeOther()
+    .badRequest()
     .unauthorized()
     .forbidden()
     .unprocessableEntity()
     .tooManyRequests();
   group
-    .delete("/session", (context) => {
+    .delete("/session", async (context) => {
       if (!sameOrigin(context))
         return context.forbidden("A same-origin Origin header is required.");
+      await options.revoke?.(context);
       const { name, ...configuredCookie } = options.cookie;
       const cookie = {
         httpOnly: true,

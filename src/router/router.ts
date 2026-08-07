@@ -9,6 +9,8 @@ import type {
   Router,
   WebSocketHandler,
 } from "../contracts";
+import { routeMethods } from "./method";
+import { parseRoutePath } from "./path";
 
 function httpRoute<RouteParams extends Params>(
   method: string | readonly string[],
@@ -16,6 +18,8 @@ function httpRoute<RouteParams extends Params>(
   handler: Handler<RouteParams>,
   options: ApiRouteOptions<RouteParams> = {},
 ): ApiRoute<RouteParams> {
+  parseRoutePath(path);
+  routeMethods(method);
   return { method, path, handler, ...options };
 }
 
@@ -24,6 +28,7 @@ function websocketRoute<RouteParams extends Params>(
   upgrade: WebSocketHandler<RouteParams>,
   options: ApiRouteOptions<RouteParams> = {},
 ): ApiRoute<RouteParams> {
+  parseRoutePath(path);
   return {
     method: "GET",
     path,

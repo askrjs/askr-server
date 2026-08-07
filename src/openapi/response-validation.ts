@@ -17,12 +17,18 @@ export async function validateOperationResponse(
   context: ServerContext,
 ): Promise<Response> {
   if (!enabled || !isDevelopment()) return response;
-  const definition = definitions.find((item) => item.status === String(response.status));
+  const status = String(response.status);
+  const range = `${status[0]}XX`;
+  const definition =
+    definitions.find((item) => item.status === status) ??
+    definitions.find((item) => item.status === range) ??
+    definitions.find((item) => item.status === "default");
   if (!definition?.schema) return response;
-  const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim();
-  if (contentType !== definition.mediaType) {
+  const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+  const expectedType = definition.mediaType?.trim().toLowerCase();
+  if (contentType !== expectedType) {
     return context.problem(500, "Operation response did not use its declared media type.", {
-      extensions: { expected: definition.mediaType, received: contentType ?? null },
+      extensions: { expected: expectedType, received: contentType ?? null },
     });
   }
   let body: unknown;

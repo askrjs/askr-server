@@ -99,14 +99,34 @@ describe("OpenAPI strict validation", () => {
       (api: ReturnType<typeof createApi>) => validRoute(api).ok(),
       /duplicate explicit response/,
     ],
-  ])("rejects %s", (_name, define, expected) => {
+    [
+      "blank response description",
+      (api: ReturnType<typeof createApi>) =>
+        api
+          .get("/x", (context) => context.ok())
+          .operationId("x")
+          .summary("X")
+          .ok(undefined, { description: " " }),
+      /response 200 description must not be blank/,
+    ],
+    [
+      "blank response media type",
+      (api: ReturnType<typeof createApi>) =>
+        api
+          .get("/x", (context) => context.ok())
+          .operationId("x")
+          .summary("X")
+          .ok(schema.object({}), { mediaType: " " }),
+      /response 200 media type must not be empty/,
+    ],
+  ])("should reject %s", (_name, define, expected) => {
     const api = createApi({ info: { title: "Invalid", version: "1" }, metadata: "authored" });
     define(api);
     expect(() => api.toOpenApiDocument()).toThrow(expected);
     expect(() => api.createRouter(undefined)).toThrow(expected);
   });
 
-  it("rejects duplicate operation IDs and method/path pairs", () => {
+  it("should reject duplicate operation IDs and method/path pairs", () => {
     const ids = createApi({ info: { title: "Invalid", version: "1" } });
     validRoute(ids, "/a", "same");
     validRoute(ids, "/b", "same");
@@ -118,7 +138,7 @@ describe("OpenAPI strict validation", () => {
     expect(() => paths.toOpenApiDocument()).toThrow(/duplicate method\/path pair/);
   });
 
-  it("derives deterministic registration metadata without inventing prose", () => {
+  it("should derive deterministic registration metadata without inventing prose", () => {
     const api = createApi({ info: { title: "Inferred", version: "1" } });
     api.get("/users/{id}", (context) => context.ok()).pathParam("id", schema.string());
     api.get("/", (context) => context.ok());
@@ -133,7 +153,7 @@ describe("OpenAPI strict validation", () => {
     expect(first.paths["/"].get?.operationId).toBe("getRoot");
   });
 
-  it("reports derived operation ID collisions with both routes", () => {
+  it("should report derived operation ID collisions with both routes", () => {
     const api = createApi({ info: { title: "Collision", version: "1" } });
     api.get("/user-id", (context) => context.ok());
     api.get("/user/id", (context) => context.ok());
@@ -147,7 +167,7 @@ describe("OpenAPI strict validation", () => {
     expect(() => resolved.toOpenApiDocument()).not.toThrow();
   });
 
-  it("does not count automatic access responses as authored responses", () => {
+  it("should not count automatic access responses as authored responses", () => {
     const api = createApi({
       info: { title: "Authored", version: "1" },
       metadata: "authored",
@@ -161,7 +181,7 @@ describe("OpenAPI strict validation", () => {
     expect(() => api.toOpenApiDocument()).toThrow(/at least one response is required/);
   });
 
-  it("rejects duplicate definitions and parameters at finalization", () => {
+  it("should reject duplicate definitions and parameters at finalization", () => {
     const api = createApi({ info: { title: "Invalid", version: "1" } });
     api.schema("Thing", schema.string());
     api.schema("Thing", schema.number());

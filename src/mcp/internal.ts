@@ -8,20 +8,18 @@ import type {
 
 export type RecordValue = Record<string, unknown>;
 type Entry = { name: string; options: McpPrimitiveOptions };
-export type Tool = Entry & { input: ObjectSchema; output?: Schema; handler: Function };
-export type Resource = { uri: string; options: McpResourceOptions; handler: Function };
+export type Tool = Entry & { input: ObjectSchema; output?: Schema; handler: unknown };
+export type Resource = { uri: string; options: McpResourceOptions; handler: unknown };
 export type Template = {
   template: string;
-  options: McpResourceOptions & { complete?: Function };
-  handler: Function;
+  options: McpResourceOptions & { complete?: unknown };
+  handler: unknown;
 };
-export type Prompt = Entry & { arguments: ObjectSchema; handler: Function };
+export type Prompt = Entry & { arguments: ObjectSchema; handler: unknown };
 export type Session = {
-  initialized: boolean;
   client: McpContext["client"];
   capabilities: RecordValue;
   revision: McpContext["protocolRevision"];
-  environment: McpRequestEnvironment<unknown>;
 };
 export interface Registries {
   tools: Map<string, Tool>;
@@ -55,7 +53,13 @@ export function success(id: unknown, result: unknown): RecordValue {
 }
 
 export function page<T>(values: readonly T[], cursor: unknown, size: number) {
-  const start = typeof cursor === "string" && /^\d+$/.test(cursor) ? Number(cursor) : 0;
+  const start =
+    cursor === undefined
+      ? 0
+      : typeof cursor === "string" && /^\d+$/.test(cursor)
+        ? Number(cursor)
+        : NaN;
+  if (!Number.isSafeInteger(start) || start < 0 || start > values.length) return undefined;
   const valuesPage = values.slice(start, start + size);
   const next = start + valuesPage.length;
   return { values: valuesPage, ...(next < values.length ? { nextCursor: String(next) } : {}) };
@@ -77,7 +81,12 @@ export function templateMatch(template: string, value: string): Record<string, s
       return "([^/]+)";
     });
   const match = new RegExp(`^${expression}$`).exec(value);
-  return match
-    ? Object.fromEntries(names.map((name, index) => [name, decodeURIComponent(match[index + 1]!)]))
-    : undefined;
+  if (!match) return undefined;
+  try {
+    return Object.fromEntries(
+      names.map((name, index) => [name, decodeURIComponent(match[index + 1]!)]),
+    );
+  } catch {
+    return undefined;
+  }
 }

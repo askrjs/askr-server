@@ -61,6 +61,14 @@ export function createEventStream(options: EventStreamOptions = {}): EventStream
   if (!Number.isSafeInteger(highWaterMark) || highWaterMark < 1) {
     throw new TypeError("SSE highWaterMark must be a positive safe integer.");
   }
+  const heartbeatInterval = options.heartbeatInterval;
+  if (
+    heartbeatInterval !== undefined &&
+    (!Number.isSafeInteger(heartbeatInterval) || heartbeatInterval <= 0)
+  ) {
+    throw new TypeError("SSE heartbeatInterval must be a positive safe integer.");
+  }
+  const signal = options.signal;
   let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let settled = false;
@@ -75,6 +83,7 @@ export function createEventStream(options: EventStreamOptions = {}): EventStream
     if (settled) return;
     settled = true;
     if (heartbeat) clearInterval(heartbeat);
+    signal?.removeEventListener("abort", finish);
     while (waiters.length) waiters.shift()?.();
     try {
       controller?.close();
@@ -135,15 +144,12 @@ export function createEventStream(options: EventStreamOptions = {}): EventStream
       await closed;
     },
   };
-  options.signal?.addEventListener("abort", finish, { once: true });
-  if (options.signal?.aborted) finish();
-  if (options.heartbeatInterval !== undefined) {
-    if (!Number.isSafeInteger(options.heartbeatInterval) || options.heartbeatInterval <= 0) {
-      throw new TypeError("SSE heartbeatInterval must be a positive safe integer.");
-    }
+  if (heartbeatInterval !== undefined) {
     heartbeat = setInterval(() => {
       void api.comment("heartbeat").catch(() => undefined);
-    }, options.heartbeatInterval);
+    }, heartbeatInterval);
   }
+  if (signal?.aborted) finish();
+  else signal?.addEventListener("abort", finish, { once: true });
   return api;
 }

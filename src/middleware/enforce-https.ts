@@ -10,7 +10,7 @@ export function enforceHttps(
     const protocol =
       forwardedProtocol?.split(",")[0]?.trim() ||
       new URL(ctx.request.url).protocol.replace(":", "");
-    if (protocol === "https") return next();
+    if (protocol.toLowerCase() === "https") return next();
     const url = new URL(ctx.request.url);
     url.protocol = "https:";
     return Response.redirect(url, options.status ?? 308);

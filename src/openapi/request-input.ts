@@ -30,6 +30,7 @@ function mediaType(request: Request): string | undefined {
 async function readBody(
   request: Request,
   declaration: ApiBodyInput,
+  required: boolean,
 ): Promise<
   | { readonly success: true; readonly data: unknown }
   | { readonly success: false; readonly detail: string }
@@ -37,9 +38,14 @@ async function readBody(
   if (request.bodyUsed && !hasBufferedRequestBody(request)) {
     return { success: false, detail: "Request body has already been consumed." };
   }
-  if (request.body === null) return { success: true, data: {} };
+  if (request.body === null) {
+    return required
+      ? { success: false, detail: "A request body is required for this operation." }
+      : { success: true, data: {} };
+  }
   const type = mediaType(request);
-  if (!type || !declaration.mediaTypes.map((value) => value.toLowerCase()).includes(type)) {
+  const allowed = declaration.mediaTypes.map((value) => value.trim().toLowerCase());
+  if (!type || !allowed.includes(type)) {
     return {
       success: false,
       detail: type
@@ -82,6 +88,7 @@ async function readBody(
 export async function readOperationInput<Input extends ApiInput>(
   context: ServerContext,
   input: Input,
+  bodyRequired = false,
 ): Promise<OperationInputResult<Input>> {
   const sources: Partial<Record<keyof ApiInput, unknown>> = {
     params: context.params,
@@ -89,7 +96,7 @@ export async function readOperationInput<Input extends ApiInput>(
     headers: Object.fromEntries(context.headers.entries()),
   };
   if (input.body) {
-    const body = await readBody(context.request, input.body);
+    const body = await readBody(context.request, input.body, bodyRequired);
     if (!body.success) return { success: false, status: 400, detail: body.detail };
     sources.body = body.data;
   }

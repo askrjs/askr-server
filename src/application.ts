@@ -45,17 +45,10 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
         if (requestId) context.state.requestId = requestId;
         if (traceId) context.state.traceId = traceId;
         try {
-          const found = matcher.match(context.url.pathname, request.method);
-          if (options.telemetry) {
-            options.telemetry.routeMatch(
-              {
-                requestId,
-                traceId,
-                route: found.match?.route.path ?? "<unmatched>",
-              },
-              () => found,
-            );
-          }
+          const match = () => matcher.match(context.url.pathname, request.method);
+          const found = options.telemetry
+            ? options.telemetry.routeMatch({ requestId, traceId }, match)
+            : match();
           context.params = found.match?.params ?? {};
           const maximum = found.match?.route.maxRequestBytes ?? applicationMaximum;
           configureRequestLimit(request, maximum);
