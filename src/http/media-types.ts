@@ -66,3 +66,19 @@ export function accepts(value: string, expected: string): boolean {
   }
   return acceptedQuality > 0;
 }
+
+export function explicitlyAccepts(value: string, expected: string): boolean {
+  const normalizedExpected = expected.trim().toLowerCase();
+  let start = 0;
+  while (start <= value.length) {
+    const comma = value.indexOf(",", start);
+    const end = comma === -1 ? value.length : comma;
+    const semicolon = value.indexOf(";", start);
+    const rangeEnd = semicolon === -1 || semicolon > end ? end : semicolon;
+    if (value.slice(start, rangeEnd).trim().toLowerCase() === normalizedExpected)
+      return accepts(value, normalizedExpected);
+    if (comma === -1) break;
+    start = comma + 1;
+  }
+  return false;
+}
