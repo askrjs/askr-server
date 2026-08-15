@@ -191,8 +191,7 @@ describe("request protection", () => {
       });
       const corsMiddleware = cors({ origin: "https://client.test", methods: ["POST"] });
       const app = createServerApp({
-        middleware:
-          order === "rate-first" ? [limiter, corsMiddleware] : [corsMiddleware, limiter],
+        middleware: order === "rate-first" ? [limiter, corsMiddleware] : [corsMiddleware, limiter],
         routes: [{ method: "POST", path: "/messages", handler: (context) => context.ok() }],
       });
 

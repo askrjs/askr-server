@@ -57,10 +57,7 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
     if (route.maxRequestBytes !== undefined)
       validateMaxRequestBytes(route.maxRequestBytes, "ApiRouteOptions.maxRequestBytes");
 
-  const errorResponse = (
-    error: unknown,
-    context: ServerContext,
-  ): Response | Promise<Response> => {
+  const errorResponse = (error: unknown, context: ServerContext): Response | Promise<Response> => {
     if (error instanceof PayloadTooLargeError) {
       return problem(413, error.message, { title: "Payload Too Large" });
     }
