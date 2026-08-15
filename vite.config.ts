@@ -11,6 +11,7 @@ export default defineConfig({
       openapi: "src/openapi/index.ts",
       mcp: "src/mcp/index.ts",
       auth: "src/auth.ts",
+      testing: "src/testing/index.ts",
     },
     format: ["esm"],
     outDir: "dist",

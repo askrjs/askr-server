@@ -16,6 +16,47 @@ runtime.
 npm install @askrjs/server
 ```
 
+## Writing transport adapters
+
+The core only sees Web `Request` and `Response` objects. A transport adapter
+must cancel a streaming response body when its client socket closes and must
+configure finite header/request timeouts for incomplete input. Neither guard
+can be reconstructed safely after the adapter discards its socket lifecycle.
+
+Adapter integration tests can import the dependency-free shared runner from
+`@askrjs/server/testing`. Each callback must exercise the actual listening
+adapter and client transport, honor the cleanup signal, and resolve only after
+it observes the required transport event:
+
+```ts
+import { runAdapterConformance } from "@askrjs/server/testing";
+
+await runAdapterConformance({
+  async abortStreamingResponse(response, cleanup) {
+    const server = await startAdapter({ fetch: async () => response });
+    cleanup.addEventListener("abort", () => server.close(), { once: true });
+    await abortClientAfterFirstResponseChunk(server.origin);
+    await server.close();
+  },
+  async enforceRequestTimeout(app, cleanup) {
+    const server = await startAdapter(app, {
+      headersTimeout: 100,
+      requestTimeout: 100,
+    });
+    cleanup.addEventListener("abort", () => server.close(), { once: true });
+    await sendIncompleteRequestAndWaitForDisconnect(server.origin);
+    await server.close();
+  },
+});
+```
+
+The runner supplies an infinite streaming response and a body-reading app,
+observes `ReadableStream.cancel()` directly, bounds each exercise with a
+deadline, and returns a frozen success report. A failure rejects with
+`AdapterConformanceError` and a stable `code`; invalid exercises or deadlines
+throw synchronously. Adapter-owned sockets and servers still belong in each
+callback's `finally`/cleanup path.
+
 ## Create an application
 
 ```ts

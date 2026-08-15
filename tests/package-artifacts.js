@@ -22,6 +22,17 @@ if (result.length !== 1) {
 }
 
 const packedFiles = new Set(result[0].files.map(({ path }) => normalize(path)));
+for (const expected of ["dist/testing.js", "dist/testing.d.ts"]) {
+  if (!packedFiles.has(normalize(expected))) {
+    throw new Error(`Packed artifact is missing ${expected}.`);
+  }
+}
+if (
+  manifest.exports?.["./testing"]?.import !== "./dist/testing.js" ||
+  manifest.exports?.["./testing"]?.types !== "./dist/testing.d.ts"
+) {
+  throw new Error("package.json must expose the built @askrjs/server/testing entry point.");
+}
 for (const file of packedFiles) {
   if (
     file !== normalize("LICENSE") &&
