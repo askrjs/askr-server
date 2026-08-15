@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createServerApp } from "../src/application";
 import { createApi, schema } from "../src/openapi/index";
 import {
+  cors,
   createCsrfToken,
   createMemoryRateLimitStore,
   csrf,
@@ -174,5 +175,80 @@ describe("request protection", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).toBe("3");
     expect(response.headers.get("ratelimit-remaining")).toBe("0");
+  });
+
+  it.each(["rate-first", "cors-first"] as const)(
+    "should keep CORS preflight quota-neutral with %s middleware order",
+    async (order) => {
+      const key = vi.fn(() => "browser-client");
+      const consume = vi.fn(async () => ({ allowed: true, remaining: 0, reset: 2_000 }));
+      const limiter = rateLimit({
+        limit: 1,
+        windowMs: 1_000,
+        key,
+        now: () => 1_000,
+        store: { consume },
+      });
+      const corsMiddleware = cors({ origin: "https://client.test", methods: ["POST"] });
+      const app = createServerApp({
+        middleware: order === "rate-first" ? [limiter, corsMiddleware] : [corsMiddleware, limiter],
+        routes: [{ method: "POST", path: "/messages", handler: (context) => context.ok() }],
+      });
+
+      const preflight = await app.fetch(
+        new Request("http://example.test/messages", {
+          method: "OPTIONS",
+          headers: {
+            origin: "https://client.test",
+            "access-control-request-method": "POST",
+          },
+        }),
+      );
+      const actual = await app.fetch(
+        new Request("http://example.test/messages", {
+          method: "POST",
+          headers: { origin: "https://client.test" },
+        }),
+      );
+
+      expect(preflight.status).toBe(204);
+      expect(actual.status).toBe(200);
+      expect(key).toHaveBeenCalledOnce();
+      expect(consume).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("should rate limit near-miss OPTIONS requests that are not CORS preflight", async () => {
+    const key = vi.fn(() => "browser-client");
+    const consume = vi.fn(async () => ({ allowed: true, remaining: 9, reset: 2_000 }));
+    const app = createServerApp({
+      middleware: [
+        rateLimit({
+          limit: 10,
+          windowMs: 1_000,
+          key,
+          now: () => 1_000,
+          store: { consume },
+        }),
+        cors({ origin: "https://client.test", methods: ["POST"] }),
+      ],
+      routes: [{ method: "POST", path: "/messages", handler: (context) => context.ok() }],
+    });
+
+    await app.fetch(
+      new Request("http://example.test/messages", {
+        method: "OPTIONS",
+        headers: { origin: "https://client.test" },
+      }),
+    );
+    await app.fetch(
+      new Request("http://example.test/messages", {
+        method: "OPTIONS",
+        headers: { "access-control-request-method": "POST" },
+      }),
+    );
+
+    expect(key).toHaveBeenCalledTimes(2);
+    expect(consume).toHaveBeenCalledTimes(2);
   });
 });
