@@ -173,7 +173,6 @@ function findMatch(
   index: number,
   values: string[] | undefined,
   method: string,
-  params?: Params,
 ): MatchCandidate | undefined {
   if (index === parts.length) {
     const exact = matchingLeaf(current.leaves, method);
@@ -196,14 +195,14 @@ function findMatch(
   const part = parts[index]!;
   const staticChild = current.static.get(part);
   if (staticChild) {
-    const match = findMatch(staticChild, parts, index + 1, values, method, params);
+    const match = findMatch(staticChild, parts, index + 1, values, method);
     if (match) return { ...match, deferEmptyWildcard: false };
   }
   let emptyParameterFallback: MatchCandidate | undefined;
   if (current.parameter) {
     const captures = values ?? [];
     captures.push(part);
-    const match = findMatch(current.parameter, parts, index + 1, captures, method, params);
+    const match = findMatch(current.parameter, parts, index + 1, captures, method);
     captures.pop();
     if (match && !match.deferEmptyWildcard) return match;
     emptyParameterFallback = match;
@@ -281,7 +280,7 @@ export function createMatcher(routes: readonly ApiRoute[]): CompiledMatcher {
     match(pathname, method, params) {
       const parts = pathnameSegments(pathname);
       if (!parts) return { allowed: noMethods };
-      const match = findMatch(root, parts, 0, undefined, normalizedMethod(method), params);
+      const match = findMatch(root, parts, 0, undefined, normalizedMethod(method));
       if (match) {
         return { match: routeMatch(match.leaf, match.values, params), allowed: noMethods };
       }
