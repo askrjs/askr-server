@@ -226,6 +226,60 @@ describe("router", () => {
     );
   });
 
+  it.each(["short-first", "nested-first"] as const)(
+    "should resolve overlapping named wildcards by consumed specificity with %s registration",
+    async (order) => {
+      const router = createRouter();
+      const short = () =>
+        router.get("/files/{*rest}", ({ params }) => text(`short:${params.rest}`));
+      const nested = () =>
+        router.get("/files/{category}/{*rest}", ({ params }) =>
+          text(`nested:${params.category}:${params.rest}`),
+        );
+      if (order === "short-first") {
+        short();
+        nested();
+      } else {
+        nested();
+        short();
+      }
+      const app = createServerApp(router);
+
+      expect(
+        await (await app.fetch(new Request("http://example.test/files/readme.txt"))).text(),
+      ).toBe("short:readme.txt");
+      expect(
+        await (await app.fetch(new Request("http://example.test/files/docs/readme.txt"))).text(),
+      ).toBe("nested:docs:readme.txt");
+    },
+  );
+
+  it.each(["exact-first", "wildcard-first"] as const)(
+    "should prefer an exact parameter leaf over an empty wildcard tail with %s registration",
+    async (order) => {
+      const router = createRouter();
+      const exact = () =>
+        router.get("/files/{category}", ({ params }) => text(`exact:${params.category}`));
+      const wildcard = () =>
+        router.get("/files/{category}/{*rest}", ({ params }) =>
+          text(`wildcard:${params.category}:${params.rest}`),
+        );
+      if (order === "exact-first") {
+        exact();
+        wildcard();
+      } else {
+        wildcard();
+        exact();
+      }
+
+      expect(
+        await (
+          await createServerApp(router).fetch(new Request("http://example.test/files/docs"))
+        ).text(),
+      ).toBe("exact:docs");
+    },
+  );
+
   it("should return a 400 Problem response for malformed captured encoding", async () => {
     const app = createServerApp({ routes: [{ path: "/items/{id}", handler: () => text("no") }] });
     const response = await app.fetch(new Request("http://example.test/items/%E0%A4%A"));
