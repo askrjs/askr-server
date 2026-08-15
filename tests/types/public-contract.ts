@@ -14,6 +14,14 @@ import {
 import type { ActionDescriptor } from "@askrjs/askr/actions";
 import type { RouteManifest } from "@askrjs/askr/router";
 import type { RouteRegistry } from "@askrjs/askr/router";
+import {
+  runAdapterConformance,
+  type AdapterConformanceExercises,
+  type AdapterConformanceReport,
+} from "../../dist/testing.js";
+
+declare const adapterExercises: AdapterConformanceExercises;
+runAdapterConformance(adapterExercises) satisfies Promise<Readonly<AdapterConformanceReport>>;
 
 const router = createRouter();
 router.get("/users/{id}", (ctx) => {
