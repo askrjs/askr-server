@@ -12,7 +12,10 @@ export interface EventStreamOptions {
   signal?: AbortSignal;
   /** If set, sends a `heartbeat` comment on this interval (in ms) to keep the connection alive. */
   heartbeatInterval?: number;
-  /** Backpressure threshold for the underlying `ReadableStream`. Defaults to 16. */
+  /**
+   * Backpressure threshold for the underlying `ReadableStream` and maximum number of
+   * unresolved `send()`/`comment()` calls admitted at once. Defaults to 16.
+   */
   highWaterMark?: number;
   headers?: HeadersInit;
 }
@@ -21,7 +24,15 @@ export interface EventStreamOptions {
 export interface EventStream {
   readonly response: Response;
   readonly closed: Promise<void>;
+  /**
+   * Queues an event in order. Await or otherwise handle the returned promise before producing
+   * without bound. Rejects with `QuotaExceededError` when the pending-write limit is full.
+   */
   send(event: ServerSentEvent): Promise<void>;
+  /**
+   * Queues an SSE comment in order. Rejects with `QuotaExceededError` when the pending-write
+   * limit is full.
+   */
   comment(value: string): Promise<void>;
   close(): Promise<void>;
 }
@@ -83,7 +94,7 @@ export function formatServerSentEvent(event: ServerSentEvent): string {
 
 /**
  * Creates a Server-Sent Events stream backed by a `text/event-stream` `Response`, with
- * backpressure-aware writes, optional heartbeat comments, and automatic closing when
+ * bounded backpressure-aware writes, optional heartbeat comments, and automatic closing when
  * `options.signal` aborts or `close()` is called.
  *
  * @param options - Stream configuration (abort signal, heartbeat interval, backpressure, headers).
@@ -111,7 +122,14 @@ export function createEventStream(options: EventStreamOptions = {}): EventStream
     resolveClosed = resolve;
   });
   let writes = Promise.resolve();
+  let pendingWrites = 0;
   const waiters: Array<() => void> = [];
+
+  const rejected = (error: DOMException): Promise<void> => {
+    const rejection = Promise.reject(error);
+    void rejection.catch(() => undefined);
+    return rejection;
+  };
 
   const finish = () => {
     if (settled) return;
@@ -126,18 +144,28 @@ export function createEventStream(options: EventStreamOptions = {}): EventStream
     }
     resolveClosed();
   };
-  const write = (value: string): Promise<void> => {
+  const write = (format: () => string): Promise<void> => {
     if (settled)
-      return Promise.reject(new DOMException("The event stream is closed.", "InvalidStateError"));
+      return rejected(new DOMException("The event stream is closed.", "InvalidStateError"));
+    if (pendingWrites >= highWaterMark) {
+      return rejected(
+        new DOMException("The event stream pending-write limit is full.", "QuotaExceededError"),
+      );
+    }
+    pendingWrites += 1;
     const operation = writes.then(async () => {
       if (settled) throw new DOMException("The event stream is closed.", "InvalidStateError");
       while ((controller?.desiredSize ?? 1) <= 0 && !settled) {
         await new Promise<void>((resolve) => waiters.push(resolve));
       }
       if (settled) throw new DOMException("The event stream is closed.", "InvalidStateError");
-      controller?.enqueue(encoder.encode(value));
+      controller?.enqueue(encoder.encode(format()));
     });
     writes = operation.catch(() => undefined);
+    const release = () => {
+      pendingWrites -= 1;
+    };
+    void operation.then(release, release);
     return operation;
   };
   const stream = new ReadableStream<Uint8Array>(
@@ -162,11 +190,11 @@ export function createEventStream(options: EventStreamOptions = {}): EventStream
   const api: EventStream = {
     response: new Response(stream, { status: 200, headers }),
     closed,
-    send: (event) => write(formatServerSentEvent(event)),
+    send: (event) => write(() => formatServerSentEvent(event)),
     comment(value) {
       if (value.includes("\0"))
         return Promise.reject(new TypeError("SSE comments must not contain NUL."));
-      return write(`${formatLines(value, ": ")}\n\n`);
+      return write(() => `${formatLines(value, ": ")}\n\n`);
     },
     async close() {
       finish();
@@ -175,6 +203,7 @@ export function createEventStream(options: EventStreamOptions = {}): EventStream
   };
   if (heartbeatInterval !== undefined) {
     heartbeat = setInterval(() => {
+      if (pendingWrites >= highWaterMark) return;
       void api.comment("heartbeat").catch(() => undefined);
     }, heartbeatInterval);
   }

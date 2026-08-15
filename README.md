@@ -195,6 +195,27 @@ The router owns path matching, params, middleware, and cancellation. The
 so Node, Bun, Deno, and edge adapters can each use their native upgrade API.
 Without an adapter, a WebSocket route returns `501 Not Implemented`.
 
+## Server-sent events
+
+`createEventStream()` returns a streaming response plus ordered `send()` and
+`comment()` methods. Always await or otherwise handle each write promise. The
+configured `highWaterMark` bounds both the underlying stream queue and the
+number of unresolved writes admitted at once; a producer that outruns that
+limit receives a `DOMException` named `QuotaExceededError` and can stop, retry,
+or wait for earlier writes to drain. Payload formatting is deferred until the
+accepted write reaches stream capacity, and heartbeats are skipped while the
+pending queue is full.
+
+```ts
+const events = createEventStream({ highWaterMark: 16 });
+
+for (const item of updates) {
+  await events.send({ event: "update", data: item });
+}
+
+return events.response;
+```
+
 ## Authentication and cookies
 
 Resolve one `AuthContext` per request and use shared requirement factories on
