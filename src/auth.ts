@@ -6,14 +6,28 @@ import type { ApiDefinition } from "./openapi/public";
 import { readOperationInput } from "./openapi/request-input";
 import type { Schema } from "./openapi/types";
 
+/** Issues auth tokens for a principal, used by {@link registerAuthRoutes} to mint session tokens. */
 export interface TokenIssuer<P extends Principal> {
   issue(principal: Omit<P, "id"> & { subject: string }): Promise<string>;
 }
 
+/** Options for {@link safeRedirect}. */
 export interface SafeRedirectOptions {
+  /** Allow redirect targets that include a URL fragment (`#...`). Defaults to disallowed. */
   readonly allowHash?: boolean;
 }
 
+/**
+ * Creates a validator that resolves an untrusted redirect target to a safe, same-origin,
+ * relative path — or to `fallback` if the value is unsafe (absolute, protocol-relative,
+ * contains a scheme, control characters, `..` traversal, backslashes, or an unwanted hash).
+ *
+ * @param fallback - The safe path to use when the requested value is not itself safe. Must
+ * itself pass the safety check, or this function throws.
+ * @param options - Redirect validation options.
+ * @returns A function `(value) => path` that returns `value` if safe, otherwise `fallback`.
+ * @throws {Error} If `fallback` is not itself a safe path.
+ */
 export function safeRedirect(fallback: string, options: SafeRedirectOptions = {}) {
   const isSafe = (value: unknown): value is string => {
     if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return false;
@@ -50,6 +64,7 @@ export function safeRedirect(fallback: string, options: SafeRedirectOptions = {}
   return (value: unknown): string => (isSafe(value) ? value : fallback);
 }
 
+/** Error thrown from `register`/`authenticate`/etc. callbacks to short-circuit an auth route with a specific status. */
 export class AuthRouteError extends Error {
   constructor(
     readonly status: 401 | 409 | 429,
@@ -60,10 +75,12 @@ export class AuthRouteError extends Error {
   }
 }
 
+/** Email/password credentials submitted to the register or authenticate endpoints. */
 export interface AuthCredentials {
   email: string;
   password: string;
 }
+/** Configuration for {@link registerAuthRoutes}. */
 export interface AuthRouteOptions<P extends Principal = Principal> {
   issuer: TokenIssuer<P>;
   cookie: CookieOptions & { name: string };
@@ -136,6 +153,16 @@ function success<P extends Principal>(
   });
 }
 
+/**
+ * Registers a standard set of authentication routes (`POST /auth/v1/accounts`,
+ * `GET/POST /auth/v1/session`, `DELETE /auth/v1/session`) on an OpenAPI-style API/group,
+ * handling registration, login, session lookup, and logout with CSRF protection via a
+ * same-origin `Origin` header check, per-attempt rate limiting, and cookie-based token storage.
+ *
+ * @param api - The API or group to register routes on (only its `group` method is used).
+ * @param options - Issuer, cookie configuration, principal schema, and register/authenticate/
+ * allowAttempt/revoke/redirect callbacks.
+ */
 export function registerAuthRoutes<Dependencies, P extends Principal>(
   api: Pick<ApiDefinition<Dependencies>, "group">,
   options: AuthRouteOptions<P>,

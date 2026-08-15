@@ -1,6 +1,7 @@
 import type { Middleware, ServerContext } from "../contracts";
 import { addHeaders } from "../http/headers";
 
+/** Options for {@link cors}. */
 export interface CorsOptions {
   origin?: string | ((origin: string, context: ServerContext) => string | null);
   methods?: readonly string[];
@@ -44,6 +45,15 @@ function rejected(ctx: ServerContext, message: string, ...vary: string[]): Respo
   return addHeaders(response, headers);
 }
 
+/**
+ * Creates CORS middleware that validates the request origin, answers preflight `OPTIONS`
+ * requests with `204` and the appropriate `Access-Control-*` headers, and adds
+ * `Access-Control-Allow-Origin`/`Vary: Origin` (plus exposed headers) to actual responses.
+ *
+ * @param options - Allowed origin(s)/methods/headers, credential support, and preflight max-age.
+ * @throws {TypeError} If `credentials` is combined with a wildcard origin, or `maxAgeSeconds`
+ * is not a non-negative safe integer.
+ */
 export function cors(options: CorsOptions = {}): Middleware {
   const configured = options.origin ?? "*";
   if (options.credentials && configured === "*") {

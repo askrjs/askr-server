@@ -14,6 +14,7 @@ import type { Handler, ServerContext } from "../contracts";
 import type { ActionRegistry } from "./actions";
 import type { CspNonceProvider } from "../csp-nonce";
 
+/** Options for {@link createAskrPageHandler}. */
 export interface AskrPageHandlerOptions {
   registry: RouteRegistry;
   auth?: RouteAuthOptions;
@@ -135,6 +136,15 @@ function routeContext(context: ServerContext, params: Record<string, string>): R
   };
 }
 
+/**
+ * Creates a catch-all route {@link Handler} that server-renders Askr framework pages: routes
+ * `GET`/`HEAD` requests through Askr's SSR pipeline, and (if `options.actions` is provided)
+ * dispatches `POST` requests as form actions, re-rendering the page with validation errors on
+ * failure or following a redirect/response on success.
+ *
+ * @param options - Route registry, auth policy, query registry, action registry, and CSP nonce provider.
+ * @throws {Error} If `options.registry` is not provided.
+ */
 export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler {
   if (!options.registry) {
     throw new Error("createAskrPageHandler requires a route registry.");

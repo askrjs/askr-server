@@ -18,6 +18,7 @@ export interface LicenseObject {
   readonly [extension: `x-${string}`]: unknown;
 }
 
+/** The OpenAPI `info` object: title, version, and descriptive metadata for the API. */
 export interface ApiInfo {
   readonly title: string;
   readonly version: string;
@@ -42,10 +43,13 @@ export interface ExternalDocumentationObject {
   readonly [extension: `x-${string}`]: unknown;
 }
 
+/** An OpenAPI security scheme definition, as built by the {@link security} helpers. */
 export type SecurityScheme = Readonly<Record<string, unknown>>;
 export type SecurityRequirementObject = Readonly<Record<string, readonly string[]>>;
+/** An OpenAPI security requirement (a list of alternative scheme+scopes requirements), as built by the {@link security} helpers. */
 export type SecurityRequirement = readonly SecurityRequirementObject[];
 
+/** Options for {@link createApi}. */
 export interface ApiOptions {
   readonly info: ApiInfo;
   /** Infer registration-safe metadata, or require fully authored public contracts. */
@@ -58,6 +62,7 @@ export interface ApiOptions {
   readonly [extension: `x-${string}`]: unknown;
 }
 
+/** A plain route handler registered via an {@link ApiGroup} method, receiving the resolved `dependencies`. */
 export type ApiHandler<Dependencies, RouteParams extends Params = Params> = {
   bivarianceHack(
     context: ServerContext<RouteParams>,
@@ -65,6 +70,7 @@ export type ApiHandler<Dependencies, RouteParams extends Params = Params> = {
   ): Response | Promise<Response>;
 }["bivarianceHack"];
 
+/** Declares the schemas for a route's inputs (path params, query, headers, body). */
 export interface ApiInput {
   readonly params?: ObjectSchema;
   readonly query?: ObjectSchema;
@@ -98,6 +104,11 @@ export interface BodyMetadata {
   readonly description?: string;
   readonly examples?: Record<string, unknown>;
 }
+/**
+ * A schema-typed route registered via an {@link ApiGroup} method: declares its `input` schemas
+ * (validated and bound before `handler` runs, with results typed via {@link InferApiInput}) and
+ * optional extra `documentation` for parameters/body not otherwise inferable.
+ */
 export interface ApiOperation<
   Dependencies,
   Input extends ApiInput = ApiInput,
@@ -229,6 +240,7 @@ export interface ComponentsObject {
   readonly [extension: `x-${string}`]: unknown;
 }
 
+/** A complete OpenAPI 3.1 document, as produced by {@link ApiDefinition.toOpenApiDocument}. */
 export interface OpenApiDocument {
   readonly openapi: "3.1.2";
   readonly info: ApiInfo;

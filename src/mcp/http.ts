@@ -74,6 +74,11 @@ function memorySessionStore(
   };
 }
 
+/**
+ * Builds an OAuth 2.0 Protected Resource Metadata document (RFC 9728) advertising `resource`
+ * and its authorization servers, as served at `/.well-known/oauth-protected-resource` by
+ * {@link registerMcpRoutes} when `options.resource` is configured.
+ */
 export function protectedResourceMetadata(
   resource: string,
   authorizationServers: readonly string[] = [],
@@ -85,6 +90,20 @@ export function protectedResourceMetadata(
   });
 }
 
+/**
+ * Registers the streamable-HTTP transport for an {@link McpServer} on a router: `POST` for
+ * JSON-RPC requests (with optional stateful session creation), `GET` for the Server-Sent
+ * Events notification stream, and `DELETE` for session termination. Validates the `Origin` and
+ * `Host` headers against allowlists, enforces a max request size, and optionally serves
+ * OAuth protected-resource metadata.
+ *
+ * @param router - The router to register routes on.
+ * @param path - The MCP endpoint path.
+ * @param mcp - The MCP server instance to dispatch messages to.
+ * @param options - Origin/host allowlists, statefulness, session store, and size/timing limits.
+ * @returns The same `router`, for chaining.
+ * @throws {TypeError} If `heartbeatInterval`, `sessionTtlMs`, or `maxSessions` are invalid.
+ */
 export function registerMcpRoutes<Dependencies>(
   router: Router,
   path: string,

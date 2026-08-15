@@ -2,6 +2,7 @@ import type { Params } from "./contracts";
 import { hasBufferedRequestBody, readRequestFormData, readRequestText } from "./body-limit";
 import { contentType } from "./http/media-types";
 
+/** Error thrown when request data cannot be bound, e.g. an unreadable or malformed body. */
 export class BindingError extends Error {
   readonly status = 400;
 
@@ -15,6 +16,7 @@ export class BindingError extends Error {
   }
 }
 
+/** Minimal request context required by {@link bind} to gather body, query, and path values. */
 export interface BindContext {
   request: Request;
   params: Params;
@@ -139,6 +141,15 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
   return {};
 }
 
+/**
+ * Merges a request's body, query string, and path parameters into a single object, in that
+ * precedence order (path parameters win, then query string, then body). Supports JSON,
+ * URL-encoded, and multipart/form-data bodies; unrecognized content types yield an empty body.
+ *
+ * @param context - The request, URL, query, and path parameters to bind from.
+ * @returns The merged values, cast to `T`.
+ * @throws {BindingError} If the body cannot be read or parsed for its declared content type.
+ */
 export async function bind<T extends object = Record<string, unknown>>(
   context: BindContext,
 ): Promise<T> {

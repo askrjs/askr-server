@@ -21,7 +21,29 @@ function isRouter(value: Router | ServerAppOptions): value is Router {
   return "use" in value && "routes" in value;
 }
 
+/**
+ * Creates a transport-neutral server application that dispatches Web `Request`s to a
+ * router's routes and middleware, returning Web `Response`s.
+ *
+ * Accepts either a bare {@link Router} or a full {@link ServerAppOptions} object (which
+ * may itself reference a router). Builds a path matcher from the combined routes, validates
+ * request-size limits, and wraps dispatch with auth resolution, telemetry, and error handling
+ * (payload-too-large, malformed path parameters, binding errors, and a fallback `onError`).
+ *
+ * @param router - A router whose routes and middleware should back the application.
+ * @returns A {@link ServerApp} exposing a `fetch(request, dispatchOptions)` method.
+ * @example
+ * const app = createServerApp(router);
+ * export default { fetch: app.fetch };
+ */
 export function createServerApp(router: Router): ServerApp;
+/**
+ * Creates a transport-neutral server application. See the {@link Router} overload for details.
+ *
+ * @param options - Configuration including router, routes, middleware, auth, telemetry,
+ * error handling, and request-size limits.
+ * @returns A {@link ServerApp} exposing a `fetch(request, dispatchOptions)` method.
+ */
 export function createServerApp(options?: ServerAppOptions): ServerApp;
 export function createServerApp(input: Router | ServerAppOptions = {}): ServerApp {
   const options: ServerAppOptions = isRouter(input) ? { router: input } : input;

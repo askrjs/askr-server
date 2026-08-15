@@ -7,6 +7,7 @@ import type {
   WebSocketHandler,
 } from "../contracts";
 
+/** Chainable, per-HTTP-method route registration methods, one per method plus `ws` for WebSockets. */
 export interface RouteBuilder {
   route<const Path extends string>(
     method: string | readonly string[],
@@ -66,6 +67,10 @@ export interface RouteBuilder {
   ): ApiRoute<PathParams<Path>>;
 }
 
+/**
+ * A mutable collection of routes and middleware, built with chainable per-method registration
+ * methods (each returning the router itself for chaining) and a `use` method for middleware.
+ */
 export interface Router extends Omit<RouteBuilder, keyof RouteBuilder> {
   readonly routes: readonly ApiRoute[];
   readonly middleware: readonly Middleware[];

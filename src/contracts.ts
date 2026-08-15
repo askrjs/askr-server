@@ -3,7 +3,9 @@ import type { EventStream, EventStreamOptions } from "./http/event-stream";
 import type { Router } from "./router/contracts";
 export type { RouteBuilder, Router } from "./router/contracts";
 
+/** Arbitrary per-request state bag attached to a {@link ServerContext}. */
 export type RequestState = Record<string, unknown>;
+/** A map of route path parameter names to their string values. */
 export type Params = Record<string, string>;
 type Whitespace = " " | "\n" | "\r" | "\t";
 type TrimLeft<Value extends string> = Value extends `${Whitespace}${infer Rest}`
@@ -21,11 +23,17 @@ type SegmentParameterName<Segment extends string> = Segment extends `{${infer Na
 type PathParameterNames<Path extends string> = Path extends `${infer Segment}/${infer Rest}`
   ? SegmentParameterName<Segment> | PathParameterNames<Rest>
   : SegmentParameterName<Path>;
+/**
+ * Infers a {@link Params}-shaped object type from a route path pattern, extracting the names
+ * of `{param}` and `{*param}` segments as required string keys.
+ */
 export type PathParams<Path extends string> = string extends Path
   ? Params
   : { [Name in PathParameterNames<Path>]: string };
+/** A value that can be serialized as JSON. */
 export type JsonValue = unknown;
 
+/** Identifies the kind of operation a {@link ServerTelemetry} call is instrumenting. */
 export type ServerTelemetryOperation =
   | "askr.request"
   | "askr.route.match"
@@ -36,6 +44,7 @@ export type ServerTelemetryOperation =
   | "askr.ssr.render"
   | "askr.vite.document";
 
+/** Contextual fields attached to a telemetry span or log entry. */
 export interface ServerTelemetryFields {
   requestId?: string;
   traceId?: string;
@@ -46,6 +55,11 @@ export interface ServerTelemetryFields {
   durationMs?: number;
 }
 
+/**
+ * Telemetry hooks that a {@link ServerAppOptions.telemetry} implementation provides. Each
+ * `work`-wrapping method should run `work` inside an appropriately named span, propagating its
+ * return value.
+ */
 export interface ServerTelemetry {
   request<T>(fields: ServerTelemetryFields, work: () => T): T;
   routeMatch<T>(fields: ServerTelemetryFields, work: () => T): T;
@@ -70,6 +84,7 @@ export interface ServerTelemetry {
   withContext?<T>(context: unknown, work: () => T): T;
 }
 
+/** An RFC 9457 Problem Details object, as produced by {@link ServerContext.problem}. */
 export interface Problem {
   type: string;
   title: string;
@@ -79,6 +94,7 @@ export interface Problem {
   [extension: string]: unknown;
 }
 
+/** Optional fields used to customize a {@link Problem} response. */
 export interface ProblemOptions {
   type?: string;
   title?: string;
@@ -86,7 +102,9 @@ export interface ProblemOptions {
   extensions?: Record<string, unknown>;
 }
 
+/** Valid values for the `SameSite` cookie attribute. */
 export type CookieSameSite = "strict" | "lax" | "none";
+/** Options controlling how a cookie is set via {@link ServerContext.setCookie}. */
 export interface CookieOptions {
   domain?: string;
   expires?: Date;
@@ -97,6 +115,7 @@ export interface CookieOptions {
   secure?: boolean;
 }
 
+/** Options for building a `WWW-Authenticate` challenge response via {@link ServerContext.challenge}. */
 export interface ChallengeOptions {
   scheme?: string;
   realm?: string;
@@ -105,6 +124,7 @@ export interface ChallengeOptions {
   init?: ResponseInit;
 }
 
+/** Transport-neutral interface for an upgraded WebSocket connection. */
 export interface WebSocketLike {
   send(data: string | ArrayBufferLike | ArrayBufferView): void;
   close(code?: number, reason?: string): void;
@@ -113,16 +133,19 @@ export interface WebSocketLike {
   onError(listener: (error: unknown) => void): () => void;
 }
 
+/** Details of a WebSocket close event, mirroring the DOM `CloseEvent` fields used here. */
 export interface WebSocketCloseEvent {
   readonly code: number;
   readonly reason: string;
   readonly wasClean: boolean;
 }
 
+/** Handler invoked with a live {@link WebSocketLike} once a connection has been upgraded. */
 export type WebSocketHandler<RouteParams extends Params = Params> = {
   bivarianceHack(socket: WebSocketLike, context: ServerContext<RouteParams>): void | Promise<void>;
 }["bivarianceHack"];
 
+/** Adapter that performs the transport-specific work of upgrading a request to a WebSocket. */
 export interface WebSocketAdapter {
   upgrade(
     request: Request,
@@ -131,6 +154,11 @@ export interface WebSocketAdapter {
   ): Response | Promise<Response>;
 }
 
+/**
+ * The per-request context passed to handlers and middleware, bundling the incoming request,
+ * parsed URL/params/query, auth state, and a family of response-building helper methods
+ * (`json`, `ok`, `notFound`, `problem`, `setCookie`, `upgrade`, etc.).
+ */
 export interface ServerContext<RouteParams extends Params = Params> {
   request: Request;
   url: URL;
@@ -171,26 +199,34 @@ export interface ServerContext<RouteParams extends Params = Params> {
   upgrade(handler: WebSocketHandler): Response | Promise<Response>;
 }
 
+/** Continuation function passed to a {@link Middleware}, invoking the next handler in the chain. */
 export type Next = () => Response | Promise<Response>;
+/** A middleware function that may short-circuit or delegate to `next` to produce a response. */
 export type Middleware<RouteParams extends Params = Params> = {
   bivarianceHack(context: ServerContext<RouteParams>, next: Next): Response | Promise<Response>;
 }["bivarianceHack"];
+/** A route handler function that produces a response for a given {@link ServerContext}. */
 export type Handler<RouteParams extends Params = Params> = {
   bivarianceHack(context: ServerContext<RouteParams>): Response | Promise<Response>;
 }["bivarianceHack"];
+/** Result of a health probe: `true`/`false` for pass/fail, a `Response` to return as-is, or `void` for pass. */
 export type ProbeResult = boolean | Response | void;
+/** A health-check handler used for liveness/readiness/startup probes. */
 export type ProbeHandler = (context: ServerContext) => ProbeResult | Promise<ProbeResult>;
+/** Handler invoked to produce a response when an auth decision denies access. */
 export type AccessDeniedHandler = (
   decision: Extract<AuthDecision, { allowed: false }>,
   context: ServerContext,
 ) => Response | Promise<Response>;
 
+/** Per-route configuration shared by {@link ApiRoute}. */
 export interface ApiRouteOptions<RouteParams extends Params = Params> {
   auth?: AuthRequirement;
   middleware?: readonly Middleware<RouteParams>[];
   maxRequestBytes?: number;
 }
 
+/** A single registered route: a path/method pattern paired with a handler (or WebSocket upgrade handler). */
 export interface ApiRoute<
   RouteParams extends Params = Params,
 > extends ApiRouteOptions<RouteParams> {
@@ -200,6 +236,7 @@ export interface ApiRoute<
   upgrade?: WebSocketHandler<RouteParams>;
 }
 
+/** Optional handlers for the built-in `livez`/`readyz`/`startupz`/`targetz` health probe routes. */
 export interface ProbeOptions {
   livez?: ProbeHandler;
   readyz?: ProbeHandler;
@@ -207,6 +244,7 @@ export interface ProbeOptions {
   targetz?: ProbeHandler;
 }
 
+/** Options accepted by {@link createServerApp} to configure a server application. */
 export interface ServerAppOptions {
   router?: Router;
   routes?: readonly ApiRoute[];
@@ -221,10 +259,12 @@ export interface ServerAppOptions {
   maxRequestBytes?: number;
 }
 
+/** Per-request options passed to {@link ServerApp.fetch}. */
 export interface ServerDispatchOptions {
   websocket?: WebSocketAdapter;
 }
 
+/** A configured server application, as returned by {@link createServerApp}. */
 export interface ServerApp {
   fetch(request: Request, dispatchOptions?: ServerDispatchOptions): Promise<Response>;
 }

@@ -1,3 +1,4 @@
+/** Default maximum request body size, in bytes (1 MiB), used when no limit is configured. */
 export const DEFAULT_MAX_REQUEST_BYTES = 1_048_576;
 
 const limits = new WeakMap<Request, number>();
@@ -8,6 +9,7 @@ export function hasBufferedRequestBody(request: Request): boolean {
   return bodies.has(request);
 }
 
+/** Error thrown when a request body exceeds the configured maximum size. */
 export class PayloadTooLargeError extends Error {
   readonly status = 413;
 
@@ -42,6 +44,16 @@ export function rejectOversizedContentLength(
   if (Number.isFinite(length) && length > maximum) throw new PayloadTooLargeError();
 }
 
+/**
+ * Reads a request body into memory as raw bytes, enforcing a maximum size. The result is
+ * cached per-request so subsequent reads (e.g. for JSON, text, or form data) reuse the same
+ * buffered bytes instead of re-reading the stream.
+ *
+ * @param request - The request whose body to read.
+ * @param maximum - Maximum allowed size in bytes; defaults to the request's configured limit.
+ * @returns The full body as a `Uint8Array`.
+ * @throws {PayloadTooLargeError} If the body exceeds `maximum`.
+ */
 export function readRequestBytes(
   request: Request,
   maximum = requestLimit(request),
@@ -83,6 +95,13 @@ export function readRequestBytes(
   return pending;
 }
 
+/**
+ * Reads and decodes a request body as UTF-8 text, enforcing a maximum size.
+ *
+ * @param request - The request whose body to read.
+ * @param maximum - Maximum allowed size in bytes; defaults to the request's configured limit.
+ * @throws {PayloadTooLargeError} If the body exceeds `maximum`.
+ */
 export async function readRequestText(
   request: Request,
   maximum = requestLimit(request),
@@ -90,6 +109,14 @@ export async function readRequestText(
   return decoder.decode(await readRequestBytes(request, maximum));
 }
 
+/**
+ * Reads a request body and parses it as `multipart/form-data`, enforcing a maximum size.
+ *
+ * @param request - The request whose body to read.
+ * @param maximum - Maximum allowed size in bytes; defaults to the request's configured limit.
+ * @returns The parsed form data.
+ * @throws {PayloadTooLargeError} If the body exceeds `maximum`.
+ */
 export async function readRequestFormData(
   request: Request,
   maximum = requestLimit(request),
