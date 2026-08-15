@@ -124,4 +124,34 @@ describe("server-sent events", () => {
     expect(recoveredSerializations).toBe(2);
     await events.close();
   });
+
+  it("should release pending capacity after deferred serialization fails", async () => {
+    const events = createEventStream({ highWaterMark: 1 });
+
+    await expect(events.send({ event: "invalid\nevent" })).rejects.toThrow(/line break/);
+    await expect(events.send({ data: "valid" })).resolves.toBeUndefined();
+    await events.close();
+  });
+
+  it("should coalesce heartbeats while a stalled stream has no pending capacity", async () => {
+    vi.useFakeTimers();
+    const events = createEventStream({ highWaterMark: 1, heartbeatInterval: 100 });
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    const reader = events.response.body!.getReader();
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe(": heartbeat\n\n");
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe(": heartbeat\n\n");
+    let thirdSettled = false;
+    const third = reader.read().then((result) => {
+      thirdSettled = true;
+      return result;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(thirdSettled).toBe(false);
+
+    await events.close();
+    expect((await third).done).toBe(true);
+    vi.useRealTimers();
+  });
 });
