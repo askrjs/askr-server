@@ -306,6 +306,18 @@ describe("router", () => {
     },
   );
 
+  it("should not leak captures from a deferred empty-wildcard candidate", async () => {
+    const router = createRouter();
+    router.get("/files/{*rest}", ({ params }) => json(params));
+    router.get("/files/{category}/{*rest}", ({ params }) => json(params));
+
+    const response = await createServerApp(router).fetch(
+      new Request("http://example.test/files/readme.txt"),
+    );
+
+    await expect(response.json()).resolves.toEqual({ rest: "readme.txt" });
+  });
+
   it("should return a 400 Problem response for malformed captured encoding", async () => {
     const app = createServerApp({ routes: [{ path: "/items/{id}", handler: () => text("no") }] });
     const response = await app.fetch(new Request("http://example.test/items/%E0%A4%A"));
