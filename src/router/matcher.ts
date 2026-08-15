@@ -22,6 +22,11 @@ export interface RouteMatch {
   params: Params;
 }
 
+type MatchCandidate = {
+  match: RouteMatch;
+  deferEmptyWildcard: boolean;
+};
+
 export interface MatchResult {
   match?: RouteMatch;
   allowed: readonly string[];
@@ -160,8 +165,12 @@ function findMatch(
   values: string[] | undefined,
   method: string,
   params?: Params,
-): RouteMatch | undefined {
+): MatchCandidate | undefined {
   if (index === parts.length) {
+    const exact = matchingLeaf(current.leaves, method);
+    if (exact) {
+      return { match: routeMatch(exact, values ?? noValues, params), deferEmptyWildcard: false };
+    }
     if (current.namedWildcard) {
       const leaf = matchingLeaf(current.namedWildcard.leaves, method);
       if (leaf) {
@@ -169,25 +178,26 @@ function findMatch(
         captures.push("");
         const match = routeMatch(leaf, captures, params);
         captures.pop();
-        return match;
+        return { match, deferEmptyWildcard: true };
       }
     }
-    const leaf = matchingLeaf(current.leaves, method);
-    return leaf ? routeMatch(leaf, values ?? noValues, params) : undefined;
+    return undefined;
   }
 
   const part = parts[index]!;
   const staticChild = current.static.get(part);
   if (staticChild) {
     const match = findMatch(staticChild, parts, index + 1, values, method, params);
-    if (match) return match;
+    if (match) return { match: match.match, deferEmptyWildcard: false };
   }
+  let emptyParameterFallback: MatchCandidate | undefined;
   if (current.parameter) {
     const captures = values ?? [];
     captures.push(part);
     const match = findMatch(current.parameter, parts, index + 1, captures, method, params);
     captures.pop();
-    if (match) return match;
+    if (match && !match.deferEmptyWildcard) return match;
+    emptyParameterFallback = match;
   }
 
   const named = current.namedWildcard
@@ -195,15 +205,15 @@ function findMatch(
     : undefined;
   const unnamed = current.wildcard ? matchingLeaf(current.wildcard.leaves, method) : undefined;
   const leaf = preferredLeaf(method, named, unnamed);
-  if (!leaf) return undefined;
+  if (!leaf) return emptyParameterFallback;
   if (leaf === named) {
     const captures = values ?? [];
     captures.push(parts.slice(index).join("/"));
     const match = routeMatch(leaf, captures, params);
     captures.pop();
-    return match;
+    return { match, deferEmptyWildcard: false };
   }
-  return routeMatch(leaf, values ?? noValues, params);
+  return { match: routeMatch(leaf, values ?? noValues, params), deferEmptyWildcard: false };
 }
 
 function collectLeaves(
@@ -263,7 +273,7 @@ export function createMatcher(routes: readonly ApiRoute[]): CompiledMatcher {
       const parts = pathnameSegments(pathname);
       if (!parts) return { allowed: noMethods };
       const match = findMatch(root, parts, 0, undefined, normalizedMethod(method), params);
-      if (match) return { match, allowed: noMethods };
+      if (match) return { match: match.match, allowed: noMethods };
       const leaves: Leaf[] = [];
       collectLeaves(root, parts, 0, leaves);
       return { allowed: allowedMethods(leaves) };
