@@ -71,6 +71,9 @@ router.get("/objects/{*key}", (ctx) => {
 Route paths are absolute. Parameters must occupy an entire segment, parameter
 names must be unique, and wildcards must be the final segment. Invalid patterns
 are rejected during registration instead of being partially matched at runtime.
+Exact and consuming matches take precedence over a trailing named wildcard that
+would capture an empty string. A named wildcard can still capture the empty
+remainder when no exact or consuming alternative matches.
 
 ## Explicit dependencies
 
