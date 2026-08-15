@@ -70,7 +70,8 @@ export function createMemoryRateLimitStore(
 /**
  * Creates middleware that enforces a request-rate limit per key (e.g. per client), adding
  * `RateLimit-*` response headers and returning `429 Too Many Requests` with `Retry-After`
- * when the limit is exceeded.
+ * when the limit is exceeded. Genuine CORS preflight requests (`OPTIONS` with both `Origin`
+ * and `Access-Control-Request-Method`) are quota-neutral regardless of middleware order.
  *
  * @param options - Limit, window, key resolver, and optional store/clock.
  * @throws {Error} If `limit` is not a positive integer or `windowMs` is not positive.
@@ -84,6 +85,13 @@ export function rateLimit(options: RateLimitOptions): Middleware {
   }
   const store = options.store ?? createMemoryRateLimitStore({ now: options.now });
   return async (context, next) => {
+    if (
+      context.request.method === "OPTIONS" &&
+      context.request.headers.has("origin") &&
+      context.request.headers.has("access-control-request-method")
+    ) {
+      return next();
+    }
     const key = options.key(context);
     const result = await store.consume(key, options.limit, options.windowMs);
     const now = options.now?.() ?? Date.now();

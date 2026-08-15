@@ -1,4 +1,4 @@
-import type { Router, ServerApp, ServerAppOptions } from "./contracts";
+import type { Router, ServerApp, ServerAppOptions, ServerContext } from "./contracts";
 import { BindingError } from "./binding";
 import { anonymousAuthContext, createServerContext } from "./context";
 import { dispatchRequest } from "./dispatch";
@@ -57,6 +57,23 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
     if (route.maxRequestBytes !== undefined)
       validateMaxRequestBytes(route.maxRequestBytes, "ApiRouteOptions.maxRequestBytes");
 
+  const errorResponse = (
+    error: unknown,
+    context: ServerContext,
+  ): Response | Promise<Response> => {
+    if (error instanceof PayloadTooLargeError) {
+      return problem(413, error.message, { title: "Payload Too Large" });
+    }
+    if (error instanceof MalformedPathParameterError) return problem(400, error.message);
+    if (error instanceof BindingError) {
+      return problem(error.status, error.message, {
+        extensions: error.field ? { field: error.field } : undefined,
+      });
+    }
+    if (options.onError) return options.onError(error, context);
+    return problem(500);
+  };
+
   const execute = async (
     request: Request,
     dispatchOptions: Parameters<ServerApp["fetch"]>[1],
@@ -87,19 +104,12 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
       if (options.auth) {
         context.auth = await options.auth.resolve(request, { signal: request.signal });
       }
-      return await dispatchRequest(middleware, context, found, options);
+      return await dispatchRequest(middleware, context, found, {
+        ...options,
+        errorResponse,
+      });
     } catch (error) {
-      if (error instanceof PayloadTooLargeError) {
-        return problem(413, error.message, { title: "Payload Too Large" });
-      }
-      if (error instanceof MalformedPathParameterError) return problem(400, error.message);
-      if (error instanceof BindingError) {
-        return problem(error.status, error.message, {
-          extensions: error.field ? { field: error.field } : undefined,
-        });
-      }
-      if (options.onError) return options.onError(error, context);
-      return problem(500);
+      return errorResponse(error, context);
     }
   };
 

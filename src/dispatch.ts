@@ -129,10 +129,22 @@ export async function dispatchRequest(
   middleware: readonly Middleware[],
   context: ServerContext,
   found: MatchResult,
-  options: { probes?: ProbeOptions; fallback?: Handler; onAccessDenied?: AccessDeniedHandler },
+  options: {
+    probes?: ProbeOptions;
+    fallback?: Handler;
+    onAccessDenied?: AccessDeniedHandler;
+    errorResponse: (error: unknown, context: ServerContext) => Response | Promise<Response>;
+  },
 ): Promise<Response> {
+  const terminal = async (): Promise<Response> => {
+    try {
+      return await executeTerminal(found, options, context);
+    } catch (error) {
+      return options.errorResponse(error, context);
+    }
+  };
   const response = await (middleware.length
-    ? runMiddleware(middleware, context, () => executeTerminal(found, options, context))
-    : executeTerminal(found, options, context));
+    ? runMiddleware(middleware, context, terminal)
+    : terminal());
   return withoutHeadBody(response, context.request);
 }
