@@ -280,6 +280,32 @@ describe("router", () => {
     },
   );
 
+  it.each(["short-first", "structured-first"] as const)(
+    "should retain static-descendant precedence over a shorter wildcard with %s registration",
+    async (order) => {
+      const router = createRouter();
+      const short = () =>
+        router.get("/files/{*rest}", ({ params }) => text(`short:${params.rest}`));
+      const structured = () =>
+        router.get("/files/{category}/fixed/{*rest}", ({ params }) =>
+          text(`structured:${params.category}:${params.rest}`),
+        );
+      if (order === "short-first") {
+        short();
+        structured();
+      } else {
+        structured();
+        short();
+      }
+
+      expect(
+        await (
+          await createServerApp(router).fetch(new Request("http://example.test/files/docs/fixed"))
+        ).text(),
+      ).toBe("structured:docs:");
+    },
+  );
+
   it("should return a 400 Problem response for malformed captured encoding", async () => {
     const app = createServerApp({ routes: [{ path: "/items/{id}", handler: () => text("no") }] });
     const response = await app.fetch(new Request("http://example.test/items/%E0%A4%A"));
