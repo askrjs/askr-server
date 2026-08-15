@@ -68,12 +68,26 @@ function createBuilder(add: (route: ApiRoute) => void): RouteBuilder {
   };
 }
 
+/**
+ * Builds a flat list of {@link ApiRoute}s by invoking `definition` with a {@link RouteBuilder}.
+ * Useful for defining a set of routes without a full {@link Router} (e.g. to compose into one).
+ *
+ * @param definition - Callback that registers routes via the provided builder.
+ * @returns The collected routes.
+ */
 export function defineRoutes(definition: (route: RouteBuilder) => void): ApiRoute[] {
   const routes: ApiRoute[] = [];
   definition(createBuilder((route) => routes.push(route)));
   return routes;
 }
 
+/**
+ * Creates an empty, mutable {@link Router} with chainable HTTP-method route builders
+ * (`get`, `post`, `put`, `patch`, `delete`, `options`, `head`, `trace`, `connect`, `ws`) and a
+ * `use` method for registering middleware.
+ *
+ * @returns A new router instance.
+ */
 export function createRouter(): Router {
   const routes: ApiRoute[] = [];
   const middleware: Middleware[] = [];

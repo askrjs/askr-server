@@ -165,6 +165,15 @@ function createGroup<Dependencies, Prefix extends string>(
   return group;
 }
 
+/**
+ * Creates an OpenAPI-aware {@link ApiDefinition}: a schema-typed route builder that records
+ * operation metadata and input/response schemas as routes are registered, then can render the
+ * routes as a concrete {@link Router} (`createRouter`) or as an OpenAPI document
+ * (`toOpenApiDocument`).
+ *
+ * @param options - API-level metadata (title, version, servers, etc.) and validation settings.
+ * @returns The root {@link ApiDefinition}.
+ */
 export function createApi<Dependencies = undefined>(
   options: ApiOptions,
 ): ApiDefinition<Dependencies> {

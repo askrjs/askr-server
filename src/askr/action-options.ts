@@ -1,5 +1,6 @@
 import type { ServerContext } from "../contracts";
 
+/** CSRF configuration shared by {@link ServerActionsOptions}. */
 export interface ActionRegistryOptions {
   /**
    * Page actions are protected by session-bound CSRF by default.

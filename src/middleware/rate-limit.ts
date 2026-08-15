@@ -1,6 +1,7 @@
 import type { Middleware } from "../contracts";
 import { addHeaders } from "../http/headers";
 
+/** Pluggable backing store for {@link rateLimit}, tracking request counts per key/window. */
 export interface RateLimitStore {
   consume(
     key: string,
@@ -13,6 +14,7 @@ export interface RateLimitStore {
     readonly allowed: boolean;
   }>;
 }
+/** Options for {@link rateLimit}. */
 export interface RateLimitOptions {
   readonly store?: RateLimitStore;
   readonly limit: number;
@@ -25,10 +27,17 @@ export interface RateLimitOptions {
   readonly now?: () => number;
 }
 
+/** Options for {@link createMemoryRateLimitStore}. */
 export interface MemoryRateLimitStoreOptions {
   readonly now?: () => number;
 }
 
+/**
+ * Creates an in-memory {@link RateLimitStore} backed by a `Map`, suitable for single-process
+ * deployments. Periodically prunes expired entries as a side effect of `consume` calls.
+ *
+ * @param options.now - Clock function used to determine window boundaries. Defaults to `Date.now`.
+ */
 export function createMemoryRateLimitStore(
   options: MemoryRateLimitStoreOptions = {},
 ): RateLimitStore {
@@ -58,6 +67,14 @@ export function createMemoryRateLimitStore(
   };
 }
 
+/**
+ * Creates middleware that enforces a request-rate limit per key (e.g. per client), adding
+ * `RateLimit-*` response headers and returning `429 Too Many Requests` with `Retry-After`
+ * when the limit is exceeded.
+ *
+ * @param options - Limit, window, key resolver, and optional store/clock.
+ * @throws {Error} If `limit` is not a positive integer or `windowMs` is not positive.
+ */
 export function rateLimit(options: RateLimitOptions): Middleware {
   if (!Number.isInteger(options.limit) || options.limit <= 0) {
     throw new Error("rateLimit requires a positive integer limit.");

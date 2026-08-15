@@ -98,6 +98,17 @@ function initialize<Dependencies>(
   });
 }
 
+/**
+ * Creates a transport-neutral Model Context Protocol server: register tools, resources,
+ * resource templates, and prompts, then feed it JSON-RPC messages via `handle` (e.g. from
+ * {@link registerMcpRoutes}). Manages session negotiation, protocol version selection, and
+ * list-changed notifications to subscribed clients.
+ *
+ * @param options - Server name/version/instructions and pagination settings.
+ * @returns An {@link McpServer} exposing registration methods, notification methods, and `handle`.
+ * @throws {TypeError} If `name`/`version` are blank, `pageSize` is invalid, or a duplicate
+ * tool/resource/template/prompt is registered.
+ */
 export function createMcpServer<Dependencies = undefined>(
   options: McpServerOptions,
 ): McpServer<Dependencies> {
