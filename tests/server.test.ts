@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createRouter,
   createServerApp,
@@ -9,7 +9,7 @@ import {
   type Middleware,
 } from "../src/index";
 import { requireAnonymous, requireRole, requireUser, type AuthContext } from "@askrjs/auth";
-import { requestId, securityHeaders } from "../src/middleware/index";
+import { cors, requestId, securityHeaders, trace } from "../src/middleware/index";
 import { enforceHttps } from "../src/middleware/enforce-https";
 
 const authenticated: AuthContext = {
@@ -51,6 +51,47 @@ describe("HTTP responses", () => {
     expect(response.headers.get("location")).toBe("http://example.test/next");
     expect(response.headers.get("x-request-id")).toBe("request-1");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it("should decorate an onError response when a route handler throws", async () => {
+    const handler = vi.fn(() => {
+      throw new Error("route failed");
+    });
+    const onError = vi.fn((_error, context) => {
+      expect(context.state.requestId).toBe("client-request-1");
+      return text("handled", { status: 503 });
+    });
+    const finishTrace = vi.fn();
+    const app = createServerApp({
+      middleware: [
+        requestId(),
+        cors({ origin: "https://client.test" }),
+        securityHeaders(),
+        trace((context) => {
+          expect(context.state.requestId).toBe("client-request-1");
+          return finishTrace;
+        }),
+      ],
+      routes: [{ path: "/failure", handler }],
+      onError,
+    });
+
+    const response = await app.fetch(
+      new Request("http://example.test/failure", {
+        headers: { origin: "https://client.test", "x-request-id": "client-request-1" },
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe("handled");
+    expect(response.headers.get("x-request-id")).toBe("client-request-1");
+    expect(response.headers.get("access-control-allow-origin")).toBe("https://client.test");
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin");
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
+    expect(handler).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(finishTrace).toHaveBeenCalledOnce();
   });
 
   it("should preserve multiple Set-Cookie values", () => {

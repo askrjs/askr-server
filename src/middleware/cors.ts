@@ -49,6 +49,7 @@ function rejected(ctx: ServerContext, message: string, ...vary: string[]): Respo
  * Creates CORS middleware that validates the request origin, answers preflight `OPTIONS`
  * requests with `204` and the appropriate `Access-Control-*` headers, and adds
  * `Access-Control-Allow-Origin`/`Vary: Origin` (plus exposed headers) to actual responses.
+ * Genuine preflight is quota-neutral in {@link rateLimit} regardless of middleware order.
  *
  * @param options - Allowed origin(s)/methods/headers, credential support, and preflight max-age.
  * @throws {TypeError} If `credentials` is combined with a wildcard origin, or `maxAgeSeconds`
