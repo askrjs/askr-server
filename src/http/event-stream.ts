@@ -1,3 +1,4 @@
+/** A single Server-Sent Event; `data` is JSON-serialized unless already a string. */
 export interface ServerSentEvent {
   data?: unknown;
   event?: string;
@@ -5,13 +6,18 @@ export interface ServerSentEvent {
   retry?: number;
 }
 
+/** Options for {@link createEventStream}. */
 export interface EventStreamOptions {
+  /** Aborting this signal closes the stream. */
   signal?: AbortSignal;
+  /** If set, sends a `heartbeat` comment on this interval (in ms) to keep the connection alive. */
   heartbeatInterval?: number;
+  /** Backpressure threshold for the underlying `ReadableStream`. Defaults to 16. */
   highWaterMark?: number;
   headers?: HeadersInit;
 }
 
+/** A live Server-Sent Events stream, backed by a streaming `Response`. */
 export interface EventStream {
   readonly response: Response;
   readonly closed: Promise<void>;
@@ -47,6 +53,12 @@ function formatLines(value: string, prefix: string): string {
   return `${output}${prefix}${value.slice(start)}`;
 }
 
+/**
+ * Serializes a {@link ServerSentEvent} to the `text/event-stream` wire format, escaping
+ * multi-line data/comment fields and validating that `event`/`id` contain no line breaks.
+ *
+ * @throws {TypeError} If `event`, `id`, or `retry` contain invalid characters/values.
+ */
 export function formatServerSentEvent(event: ServerSentEvent): string {
   let output = "";
   if (event.event !== undefined) {
@@ -69,6 +81,15 @@ export function formatServerSentEvent(event: ServerSentEvent): string {
   return output ? `${output}\n` : "\n\n";
 }
 
+/**
+ * Creates a Server-Sent Events stream backed by a `text/event-stream` `Response`, with
+ * backpressure-aware writes, optional heartbeat comments, and automatic closing when
+ * `options.signal` aborts or `close()` is called.
+ *
+ * @param options - Stream configuration (abort signal, heartbeat interval, backpressure, headers).
+ * @returns An {@link EventStream} exposing the response plus `send`/`comment`/`close` methods.
+ * @throws {TypeError} If `highWaterMark` or `heartbeatInterval` are not positive safe integers.
+ */
 export function createEventStream(options: EventStreamOptions = {}): EventStream {
   const highWaterMark = options.highWaterMark ?? 16;
   if (!Number.isSafeInteger(highWaterMark) || highWaterMark < 1) {

@@ -22,16 +22,19 @@ import { createAskrPageHandler } from "./page-handler";
 import type { CspNonceProvider } from "../csp-nonce";
 import { parseRoutePath } from "../router/path";
 
+/** A configured Askr application, as returned by {@link createAskrApp}. */
 export interface AskrApp {
   fetch(request: Request): Promise<Response>;
   toOpenApiDocument(): OpenApiDocument;
   close(): Promise<void>;
 }
 
+/** The API group passed to {@link AskrAppApiOptions.define}, extended with a `schema` helper. */
 export interface AskrAppApi<Dependencies> extends ApiGroup<Dependencies> {
   schema: ApiDefinition<Dependencies>["schema"];
 }
 
+/** Options for the OpenAPI-backed API portion of an {@link AskrApp}. */
 export interface AskrAppApiOptions<Dependencies> {
   readonly prefix?: string;
   readonly securitySchemes?: Readonly<Record<string, SecurityScheme>>;
@@ -39,12 +42,14 @@ export interface AskrAppApiOptions<Dependencies> {
   readonly validateResponses?: boolean;
 }
 
+/** Authentication configuration for an {@link AskrApp}: request resolver, optional auth routes, and page auth policy. */
 export interface AskrAppAuthOptions<P extends Principal> {
   readonly resolver: AuthResolver;
   readonly routes?: AuthRouteOptions<P>;
   readonly pages?: RouteAuthOptions;
 }
 
+/** Options for {@link createAskrApp}. */
 export interface AskrAppOptions<Dependencies, P extends Principal = Principal> {
   readonly name: string;
   readonly version: string;
@@ -77,6 +82,16 @@ function normalizePrefix(value: string | undefined): string {
   return prefix;
 }
 
+/**
+ * Assembles a complete Askr application from page routes, an optional OpenAPI-described API,
+ * optional server actions, and optional authentication — wiring an API router (mounted at
+ * `options.api?.prefix`, default `/api`), auth routes, and a page-rendering fallback handler
+ * into a single {@link ServerApp}-like object.
+ *
+ * @param options - Pages registry, dependencies, API/auth/action configuration, and lifecycle hooks.
+ * @returns An {@link AskrApp} exposing `fetch`, `toOpenApiDocument`, and `close`.
+ * @throws {Error} If `options.api.prefix` is invalid, or collides with the reserved `/auth` prefix.
+ */
 export function createAskrApp<Dependencies, P extends Principal = Principal>(
   options: AskrAppOptions<Dependencies, P>,
 ): AskrApp {

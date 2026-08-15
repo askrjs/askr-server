@@ -17,6 +17,7 @@ function responseHeaders(init: ResponseInit | undefined, contentType?: string): 
   return headers;
 }
 
+/** Builds a `200 OK`-shaped JSON response, serializing `value` and setting the JSON content type. */
 export function json(value: JsonValue, init?: ResponseInit): Response {
   if (!init) return new Response(JSON.stringify(value), { headers: jsonHeaders });
   return new Response(JSON.stringify(value), {
@@ -25,6 +26,7 @@ export function json(value: JsonValue, init?: ResponseInit): Response {
   });
 }
 
+/** Builds a plain-text response, setting the `text/plain; charset=utf-8` content type. */
 export function text(value: string, init?: ResponseInit): Response {
   if (!init) return new Response(value, { headers: textHeaders });
   return new Response(value, {
@@ -33,6 +35,7 @@ export function text(value: string, init?: ResponseInit): Response {
   });
 }
 
+/** Builds a redirect response with an empty body and a `Location` header. Defaults to `302 Found`. */
 export function redirect(location: string, status: 301 | 302 | 303 | 307 | 308 = 302): Response {
   return new Response(null, { status, headers: { location } });
 }
@@ -52,6 +55,10 @@ const statusTitles: Record<number, string> = {
   503: "Service Unavailable",
 };
 
+/**
+ * Builds an RFC 9457 `application/problem+json` response, defaulting `type` to `about:blank`
+ * and `title` to a standard reason phrase for the given `status` (falling back to "HTTP Error").
+ */
 export function problem(
   status: number,
   detail?: string,
@@ -89,32 +96,50 @@ function message(status: number, detail: string, init?: ResponseInit): Response 
   return problem(status, detail, { init });
 }
 
+/** Builds a `200 OK` response; JSON-serializes `value` if given, otherwise an empty body. */
 export const ok = (value?: JsonValue, init?: ResponseInit) => withStatus(200, value, init);
+/** Builds a `201 Created` response; JSON-serializes `value` if given, otherwise an empty body. */
 export const created = (value?: JsonValue, init?: ResponseInit) => withStatus(201, value, init);
+/** Builds a `202 Accepted` response; JSON-serializes `value` if given, otherwise an empty body. */
 export const accepted = (value?: JsonValue, init?: ResponseInit) => withStatus(202, value, init);
+/** Builds a `204 No Content` response with an empty body. */
 export const noContent = (init?: ResponseInit) => withStatus(204, undefined, init);
+/** Builds a `400 Bad Request` Problem Details response. */
 export const badRequest = (detail = "Bad Request", init?: ResponseInit) =>
   message(400, detail, init);
+/** Alias for {@link badRequest}. */
 export const bad = badRequest;
+/** Builds a `401 Unauthorized` Problem Details response. */
 export const unauthorized = (detail = "Unauthorized", init?: ResponseInit) =>
   message(401, detail, init);
+/** Builds a `403 Forbidden` Problem Details response. */
 export const forbidden = (detail = "Forbidden", init?: ResponseInit) => message(403, detail, init);
+/** Builds a `404 Not Found` Problem Details response. */
 export const notFound = (detail = "Not Found", init?: ResponseInit) => message(404, detail, init);
+/** Builds a `409 Conflict` Problem Details response. */
 export const conflict = (detail = "Conflict", init?: ResponseInit) => message(409, detail, init);
+/** Builds a `422 Unprocessable Entity` Problem Details response. */
 export const unprocessableEntity = (detail = "Unprocessable Entity", init?: ResponseInit) =>
   message(422, detail, init);
+/** Builds a `429 Too Many Requests` Problem Details response. */
 export const tooManyRequests = (detail = "Too Many Requests", init?: ResponseInit) =>
   message(429, detail, init);
+/** Builds a `501 Not Implemented` Problem Details response. */
 export const notImplemented = (detail = "Not Implemented", init?: ResponseInit) =>
   message(501, detail, init);
+/** Builds a `503 Service Unavailable` Problem Details response. */
 export const serviceUnavailable = (detail = "Service Unavailable", init?: ResponseInit) =>
   message(503, detail, init);
+/** Builds a Problem Details error response with a configurable status (default `500`). */
 export const error = (status = 500, detail = "Internal Server Error", init?: ResponseInit) =>
   message(status, detail, init);
+/** Builds a `500 Internal Server Error` Problem Details response. */
 export const internalServerError = (detail = "Internal Server Error", init?: ResponseInit) =>
   error(500, detail, init);
+/** Alias for {@link internalServerError}. */
 export const serverError = internalServerError;
 
+/** Builds a `405 Method Not Allowed` Problem Details response, setting the `Allow` header if given. */
 export function methodNotAllowed(
   allow?: string | readonly string[],
   init?: ResponseInit,
@@ -137,6 +162,10 @@ function serializeCookie(name: string, value: string, options: CookieOptions = {
   return parts.join("; ");
 }
 
+/**
+ * Returns a clone of `response` with an additional `Set-Cookie` header appended, serialized
+ * from `name`, `value`, and `options`.
+ */
 export function setCookie(
   response: Response,
   name: string,
@@ -148,6 +177,7 @@ export function setCookie(
   return next;
 }
 
+/** Returns a clone of `response` with a `Set-Cookie` header that expires and clears `name`. */
 export function clearCookie(
   response: Response,
   name: string,
@@ -156,6 +186,10 @@ export function clearCookie(
   return setCookie(response, name, "", { ...options, expires: new Date(0), maxAge: 0 });
 }
 
+/**
+ * Builds a `401`/`407` Problem Details response with a `WWW-Authenticate` (or
+ * `Proxy-Authenticate` for `407`) challenge header.
+ */
 export function challenge(options: ChallengeOptions = {}): Response {
   const status = options.status ?? 401;
   const scheme = options.scheme ?? "Bearer";

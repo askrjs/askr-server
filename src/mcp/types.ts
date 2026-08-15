@@ -1,8 +1,11 @@
 import type { AuthContext, AuthRequirement } from "@askrjs/auth";
 import type { InferSchema, ObjectSchema, Schema } from "@askrjs/schema";
 
+/** MCP protocol version negotiated between client and server. */
 export type McpProtocolRevision = "2025-11-25" | "2025-06-18";
+/** The transport an MCP session is communicating over. */
 export type McpTransportKind = "http" | "stdio";
+/** Severity level for {@link McpContext.log}, following syslog conventions. */
 export type McpLogLevel =
   | "debug"
   | "info"
@@ -13,11 +16,17 @@ export type McpLogLevel =
   | "alert"
   | "emergency";
 
+/** A single piece of MCP content (text, image, resource link, etc.), keyed by `type`. */
 export interface McpContent {
   type: string;
   [key: string]: unknown;
 }
 
+/**
+ * The per-request context passed to tool/resource/prompt handlers, exposing client info,
+ * negotiated protocol/transport details, and `progress`/`log` callbacks for sending
+ * notifications back to the client.
+ */
 export interface McpContext<Dependencies = undefined> {
   readonly dependencies: Dependencies;
   readonly auth: AuthContext;
@@ -31,6 +40,7 @@ export interface McpContext<Dependencies = undefined> {
   log(level: McpLogLevel, data: unknown, logger?: string): void | Promise<void>;
 }
 
+/** Metadata shared by tools, resources, and prompts. */
 export interface McpPrimitiveOptions {
   title?: string;
   description?: string;
@@ -38,6 +48,7 @@ export interface McpPrimitiveOptions {
   annotations?: Readonly<Record<string, unknown>>;
 }
 
+/** Options for registering a tool via {@link McpServer.tool}. */
 export interface McpToolOptions<
   Input extends ObjectSchema = ObjectSchema,
   Output extends Schema | undefined = undefined,
@@ -46,23 +57,31 @@ export interface McpToolOptions<
   output?: Output;
 }
 
+/** The result returned by a tool handler: content blocks and/or a typed structured result. */
 export type McpToolResult<Output extends Schema | undefined = undefined> = {
   content?: readonly McpContent[];
   structuredContent?: Output extends Schema ? InferSchema<Output> : unknown;
   isError?: boolean;
 };
 
+/** Options for registering a resource via {@link McpServer.resource}. */
 export interface McpResourceOptions extends McpPrimitiveOptions {
   name?: string;
   mimeType?: string;
 }
 
+/** Options for registering a prompt via {@link McpServer.prompt}. */
 export interface McpPromptOptions<
   Arguments extends ObjectSchema = ObjectSchema,
 > extends McpPrimitiveOptions {
   arguments?: Arguments;
 }
 
+/**
+ * Transport-provided context for a single inbound MCP message, passed to
+ * {@link McpServer.handle}. `send` (if provided) delivers server-to-client notifications for
+ * push-capable transports.
+ */
 export interface McpRequestEnvironment<Dependencies = undefined> {
   dependencies: Dependencies;
   auth: AuthContext;
@@ -73,12 +92,14 @@ export interface McpRequestEnvironment<Dependencies = undefined> {
   supportsPush?: boolean;
 }
 
+/** Pluggable backing store for stateful MCP session IDs, used by the HTTP transport. */
 export interface McpSessionStore {
   create(id: string): void | Promise<void>;
   has(id: string): boolean | Promise<boolean>;
   delete(id: string): boolean | Promise<boolean>;
 }
 
+/** Options for {@link createMcpServer}. */
 export interface McpServerOptions {
   name: string;
   version: string;
@@ -87,6 +108,11 @@ export interface McpServerOptions {
   pageSize?: number;
 }
 
+/**
+ * A Model Context Protocol server, as created by {@link createMcpServer}: register tools,
+ * resources, resource templates, and prompts; push list-changed notifications; and dispatch
+ * inbound JSON-RPC messages via `handle`.
+ */
 export interface McpServer<Dependencies = undefined> {
   tool<
     const Name extends string,

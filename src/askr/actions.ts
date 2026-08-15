@@ -1,8 +1,5 @@
-import type { AuthContext } from "@askrjs/auth";
 import type { ActionDescriptor } from "@askrjs/askr/actions";
-import type { RoutePolicy } from "@askrjs/askr/router";
-import type { Issue } from "@askrjs/schema";
-import type { CookieOptions, Params, ServerContext } from "../contracts";
+import type { ServerContext } from "../contracts";
 import { createCsrfToken } from "../middleware/csrf";
 import { readRequestFormData, readRequestText } from "../body-limit";
 import { contentType, explicitlyAccepts } from "../http/media-types";
@@ -15,97 +12,33 @@ import {
   type RegisteredAction,
   type Submission,
 } from "./action-stages";
-import type { ActionRegistryOptions } from "./action-options";
+import type {
+  ActionEntry,
+  ActionExecution,
+  ActionHandler,
+  ActionRegistration,
+  ActionRegistry,
+  ServerActionsOptions,
+} from "./action-types";
 
-export type { ActionRegistryOptions } from "./action-options";
+export type {
+  ActionCookieInstruction,
+  ActionEntry,
+  ActionExecution,
+  ActionExecutionOptions,
+  ActionHandler,
+  ActionHandlerContext,
+  ActionOutcome,
+  ActionRegistration,
+  ActionRegistry,
+  ActionRegistryOptions,
+  ServerActionsOptions,
+} from "./action-types";
 
-export type ActionCookieInstruction =
-  | {
-      readonly name: string;
-      readonly value: string;
-      readonly clear?: false;
-      readonly options?: CookieOptions;
-    }
-  | {
-      readonly name: string;
-      readonly clear: true;
-      readonly value?: never;
-      readonly options?: CookieOptions;
-    };
-
-export interface ActionOutcome<Result = unknown> {
-  readonly redirect?: string;
-  readonly result?: Result;
-  readonly cookies?: readonly ActionCookieInstruction[];
-}
-
-export interface ActionHandlerContext {
-  readonly request: Request;
-  readonly url: URL;
-  readonly params: Params;
-  readonly auth: AuthContext;
-  readonly policies: readonly RoutePolicy[];
-  readonly signal: AbortSignal;
-}
-
-export type ActionHandler<
-  Dependencies,
-  Input extends Record<string, unknown> = Record<string, unknown>,
-  Result = unknown,
-> = (
-  context: ActionHandlerContext,
-  input: Input,
-  dependencies: Dependencies,
-) => ActionOutcome<Result> | Promise<ActionOutcome<Result>>;
-
-export interface ActionExecutionOptions {
-  readonly authorized: readonly ActionDescriptor[];
-  readonly params: Params;
-  readonly policies: readonly RoutePolicy[];
-  readonly allowsRedirect: (location: URL) => boolean;
-}
-
-export type ActionExecution =
-  | { readonly kind: "response"; readonly response: Response }
-  | {
-      readonly kind: "invalid";
-      readonly action: string;
-      readonly values: Readonly<Record<string, unknown>>;
-      readonly issues: readonly Issue[];
-      readonly fieldErrors: Readonly<Record<string, readonly string[]>>;
-    };
-
-export interface ActionRegistry {
-  readonly entries: readonly Readonly<{ descriptor: ActionDescriptor }>[];
-  csrfToken(context: ServerContext): Promise<string | undefined>;
-  execute(
-    context: ServerContext,
-    options: ActionExecutionOptions,
-  ): Promise<ActionExecution | undefined>;
-}
-
-export interface ActionEntry<
-  Dependencies,
-  Input extends Record<string, unknown> = Record<string, unknown>,
-  Result = unknown,
-> {
-  readonly descriptor: ActionDescriptor<Input>;
-  readonly handler: ActionHandler<Dependencies, Input, Result>;
-}
-
-export interface ActionRegistration<Dependencies> {
-  readonly descriptor: ActionDescriptor;
-  readonly handler: (
-    context: ActionHandlerContext,
-    input: never,
-    dependencies: Dependencies,
-  ) => ActionOutcome<unknown> | Promise<ActionOutcome<unknown>>;
-}
-
-export interface ServerActionsOptions<Dependencies> extends ActionRegistryOptions {
-  readonly dependencies: Dependencies;
-}
-
+/**
+ * Pairs an action descriptor (its ID and input schema) with a typed handler, ready to pass to
+ * {@link defineServerActions}.
+ */
 export function handleAction<Dependencies, Input extends Record<string, unknown>, Result = unknown>(
   descriptor: ActionDescriptor<Input>,
   handler: ActionHandler<Dependencies, Input, Result>,
@@ -198,6 +131,16 @@ async function readSubmission(
   }
 }
 
+/**
+ * Builds an {@link ActionRegistry} from a set of {@link ActionEntry}s (via {@link handleAction}),
+ * wiring up CSRF token issuance/verification (unless `options.csrf` is `false`), submission
+ * parsing (JSON or form-encoded), input validation, telemetry, and response negotiation
+ * (redirect vs. JSON envelope) for each action invocation.
+ *
+ * @param options - Dependencies to inject into handlers, plus CSRF configuration.
+ * @param entries - The registered actions.
+ * @throws {Error} If two entries share the same action ID.
+ */
 export function defineServerActions<Dependencies>(
   options: ServerActionsOptions<Dependencies>,
   ...entries: readonly ActionRegistration<Dependencies>[]

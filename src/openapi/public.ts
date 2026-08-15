@@ -10,6 +10,7 @@ import type {
   SecurityRequirement,
 } from "./types";
 
+/** Metadata for a path/query/header/cookie parameter, used to enrich the generated OpenAPI document. */
 export interface ParameterOptions {
   description?: string;
   required?: boolean;
@@ -17,12 +18,14 @@ export interface ParameterOptions {
   example?: unknown;
 }
 
+/** Metadata for a request body, used to enrich the generated OpenAPI document. */
 export interface BodyOptions {
   required?: boolean;
   description?: string;
   examples?: Record<string, unknown>;
 }
 
+/** Metadata for a response, used to enrich the generated OpenAPI document. */
 export interface ResponseOptions {
   description?: string;
   mediaType?: string;
@@ -30,6 +33,11 @@ export interface ResponseOptions {
   examples?: Record<string, unknown>;
 }
 
+/**
+ * Fluent builder for describing a single route's OpenAPI operation: metadata (operation ID,
+ * summary, tags), request inputs (path/query/header/cookie params and body), and possible
+ * responses (both status-coded shorthand methods like `ok`/`notFound` and the generic `response`).
+ */
 export interface RouteBuilder<Dependencies> {
   operationId(value: string): RouteBuilder<Dependencies>;
   summary(value: string): RouteBuilder<Dependencies>;
@@ -93,6 +101,11 @@ export type OperationRouteBuilder<Dependencies> = Omit<
 
 type JoinPath<Prefix extends string, Path extends string> = `${Prefix}${Path}`;
 
+/**
+ * A per-HTTP-method registration function on {@link ApiGroup}, accepting either a schema-typed
+ * `operation` (returning an {@link OperationRouteBuilder} that omits already-satisfied input
+ * methods) or a plain `handler` (returning the full {@link RouteBuilder}).
+ */
 export interface ApiMethod<Dependencies, Prefix extends string> {
   <const Path extends string, const Input extends ApiInput>(
     path: Path,
@@ -104,6 +117,10 @@ export interface ApiMethod<Dependencies, Prefix extends string> {
   ): RouteBuilder<Dependencies>;
 }
 
+/**
+ * A prefixed group of routes within an {@link ApiDefinition}, supporting nested sub-groups,
+ * shared tags/middleware/auth/params, and per-HTTP-method route registration.
+ */
 export interface ApiGroup<Dependencies, Prefix extends string = ""> {
   tags(...values: string[]): ApiGroup<Dependencies>;
   use(...middleware: Middleware[]): ApiGroup<Dependencies>;
@@ -123,6 +140,11 @@ export interface ApiGroup<Dependencies, Prefix extends string = ""> {
   trace: ApiMethod<Dependencies, Prefix>;
 }
 
+/**
+ * The root API definition returned by {@link createApi}: a top-level {@link ApiGroup} that can
+ * also register reusable named schemas, build a concrete {@link Router} from its routes, and
+ * render an {@link OpenApiDocument}.
+ */
 export interface ApiDefinition<Dependencies> extends ApiGroup<Dependencies, ""> {
   schema<const Value extends Schema>(name: string, value: Value): Value;
   createRouter: [Dependencies] extends [undefined]
@@ -131,4 +153,5 @@ export interface ApiDefinition<Dependencies> extends ApiGroup<Dependencies, ""> 
   toOpenApiDocument(): OpenApiDocument;
 }
 
+/** Where an OpenAPI parameter is located: `"path"`, `"query"`, `"header"`, or `"cookie"`. */
 export type ParameterLocation = ParameterDefinition["in"];

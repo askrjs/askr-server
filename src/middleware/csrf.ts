@@ -1,6 +1,7 @@
 import type { Middleware } from "../contracts";
 import { readRequestFormData } from "../body-limit";
 
+/** Options for {@link csrf}. */
 export interface CsrfOptions {
   readonly secret: string;
   readonly sessionId?: (context: Parameters<Middleware>[0]) => string | undefined;
@@ -45,6 +46,14 @@ async function signature(secret: string, session: string): Promise<string> {
   );
 }
 
+/**
+ * Verifies a CSRF token against a session ID using an HMAC-SHA256 signature.
+ *
+ * @param secret - The HMAC secret used to sign tokens.
+ * @param sessionId - The session ID the token should be bound to.
+ * @param token - The base64url-encoded token to verify.
+ * @returns `true` if the token is a valid signature of `sessionId` under `secret`.
+ */
 export async function verifyCsrfToken(
   secret: string,
   sessionId: string,
@@ -57,10 +66,24 @@ export async function verifyCsrfToken(
   );
 }
 
+/**
+ * Creates a CSRF token bound to a session ID, as an HMAC-SHA256 signature encoded base64url.
+ *
+ * @param secret - The HMAC secret; must match what {@link verifyCsrfToken} uses.
+ * @param sessionId - The session ID to bind the token to.
+ */
 export async function createCsrfToken(secret: string, sessionId: string): Promise<string> {
   return signature(secret, sessionId);
 }
 
+/**
+ * Creates middleware that enforces CSRF protection on state-changing requests (all methods
+ * except `GET`/`HEAD`/`OPTIONS`/`TRACE`) by requiring a valid token bound to the current
+ * session, supplied via a request header or (for form-encoded bodies) a form field.
+ *
+ * @param options - HMAC secret, session ID resolver, and header/form field names.
+ * @throws {Error} If `options.secret` is empty.
+ */
 export function csrf(options: CsrfOptions): Middleware {
   if (!options.secret) throw new Error("csrf requires a non-empty secret.");
   const header = options.header ?? "x-askr-csrf-token";
