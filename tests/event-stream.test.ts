@@ -71,4 +71,57 @@ describe("server-sent events", () => {
     expect(vi.getTimerCount()).toBe(0);
     vi.useRealTimers();
   });
+
+  it("should bound many unawaited writes before retaining or formatting payloads", async () => {
+    const events = createEventStream({ highWaterMark: 2 });
+    let serializations = 0;
+    const writes = Array.from({ length: 100 }, (_, index) =>
+      events.send({
+        data: {
+          toJSON() {
+            serializations += 1;
+            return { index, payload: "x".repeat(100_000) };
+          },
+        },
+      }),
+    );
+
+    expect(serializations).toBe(0);
+    const results = await Promise.allSettled(writes);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(2);
+    const rejected = results.filter((result) => result.status === "rejected");
+    expect(rejected).toHaveLength(98);
+    for (const result of rejected) {
+      expect(result).toMatchObject({
+        reason: { name: "QuotaExceededError" },
+      });
+    }
+    expect(serializations).toBe(2);
+
+    let recoveredSerializations = 0;
+    const blocked = [0, 1].map((index) =>
+      events.send({
+        data: {
+          toJSON() {
+            recoveredSerializations += 1;
+            return { index };
+          },
+        },
+      }),
+    );
+    await Promise.resolve();
+    expect(recoveredSerializations).toBe(0);
+    await expect(events.send({ data: "overflow" })).rejects.toMatchObject({
+      name: "QuotaExceededError",
+    });
+
+    const reader = events.response.body!.getReader();
+    await reader.read();
+    await blocked[0];
+    expect(recoveredSerializations).toBe(1);
+    await reader.read();
+    await blocked[1];
+    expect(recoveredSerializations).toBe(2);
+    await events.close();
+  });
 });
