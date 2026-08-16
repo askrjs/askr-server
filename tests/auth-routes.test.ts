@@ -73,7 +73,7 @@ describe("authentication routes", () => {
       ]?.schema,
     ).toMatchObject({
       required: ["authenticated", "principal", "session", "tenant"],
-      properties: { principal: { required: ["id", "email"] } },
+      properties: { principal: { required: ["email", "id"] } },
     });
   });
 
