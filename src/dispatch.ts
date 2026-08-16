@@ -15,14 +15,20 @@ function runMiddleware(
   middleware: readonly Middleware[],
   context: ServerContext,
   terminal: Handler,
-): Response | Promise<Response> {
+  onError?: (error: unknown, context: ServerContext) => Response | Promise<Response>,
+): Promise<Response> {
   let index = -1;
-  const dispatch = (nextIndex: number): Response | Promise<Response> => {
-    if (nextIndex <= index)
-      throw new Error("next() may only be called once per middleware invocation");
-    index = nextIndex;
-    const current = middleware[nextIndex];
-    return current ? current(context, () => dispatch(nextIndex + 1)) : terminal(context);
+  const dispatch = async (nextIndex: number): Promise<Response> => {
+    try {
+      if (nextIndex <= index)
+        throw new Error("next() may only be called once per middleware invocation");
+      index = nextIndex;
+      const current = middleware[nextIndex];
+      return await (current ? current(context, () => dispatch(nextIndex + 1)) : terminal(context));
+    } catch (error) {
+      if (onError) return onError(error, context);
+      throw error;
+    }
   };
   return dispatch(0);
 }
@@ -144,7 +150,7 @@ export async function dispatchRequest(
     }
   };
   const response = await (middleware.length
-    ? runMiddleware(middleware, context, terminal)
+    ? runMiddleware(middleware, context, terminal, options.errorResponse)
     : terminal());
   return withoutHeadBody(response, context.request);
 }

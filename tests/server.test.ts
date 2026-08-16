@@ -94,6 +94,27 @@ describe("HTTP responses", () => {
     expect(finishTrace).toHaveBeenCalledOnce();
   });
 
+  it("should decorate an onError response when inner global middleware throws", async () => {
+    const onError = vi.fn(() => text("handled", { status: 503 }));
+    const app = createServerApp({
+      middleware: [
+        requestId({ generate: () => "request-1" }),
+        async () => {
+          throw new Error("middleware failed");
+        },
+      ],
+      routes: [{ path: "/failure", handler: () => text("unreachable") }],
+      onError,
+    });
+
+    const response = await app.fetch(new Request("http://example.test/failure"));
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe("handled");
+    expect(response.headers.get("x-request-id")).toBe("request-1");
+    expect(onError).toHaveBeenCalledOnce();
+  });
+
   it("should preserve multiple Set-Cookie values", () => {
     const first = setCookie(new Response(null), "one", "1");
     const second = setCookie(first, "two", "2");
