@@ -115,6 +115,25 @@ describe("HTTP responses", () => {
     expect(onError).toHaveBeenCalledOnce();
   });
 
+  it("should decorate an onError response when route middleware throws", async () => {
+    const app = createServerApp({
+      middleware: [requestId({ generate: () => "request-1" })],
+      routes: [
+        {
+          path: "/failure",
+          middleware: [async () => Promise.reject(new Error("route middleware failed"))],
+          handler: () => text("unreachable"),
+        },
+      ],
+      onError: () => text("handled", { status: 503 }),
+    });
+
+    const response = await app.fetch(new Request("http://example.test/failure"));
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("x-request-id")).toBe("request-1");
+  });
+
   it("should preserve multiple Set-Cookie values", () => {
     const first = setCookie(new Response(null), "one", "1");
     const second = setCookie(first, "two", "2");
