@@ -19,6 +19,11 @@ import {
   type AdapterConformanceExercises,
   type AdapterConformanceReport,
 } from "../../dist/testing.js";
+import { accepts, contentType, explicitlyAccepts } from "../../dist/http.js";
+
+contentType("text/html; charset=utf-8") satisfies string | undefined;
+accepts("text/*", "text/html") satisfies boolean;
+explicitlyAccepts("text/html", "text/html") satisfies boolean;
 
 declare const adapterExercises: AdapterConformanceExercises;
 runAdapterConformance(adapterExercises) satisfies Promise<Readonly<AdapterConformanceReport>>;
