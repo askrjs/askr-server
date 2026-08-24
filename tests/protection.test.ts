@@ -168,7 +168,30 @@ describe("request protection", () => {
       }),
     );
     expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      detail: "CSRF token validation failed.",
+    });
     expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("should reject a missing CSRF session without reading the form body", async () => {
+    const request = new Request("http://example.test/action", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ _csrf: "unused" }),
+    });
+    const app = createServerApp({
+      middleware: [csrf({ secret: "test-secret" })],
+      routes: [{ method: "POST", path: "/action", handler: (context) => context.noContent() }],
+    });
+
+    const response = await app.fetch(request);
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      detail: "A session is required for this request.",
+    });
+    expect(request.bodyUsed).toBe(false);
   });
 
   it("should return standard limit headers and avoid mutating immutable responses", async () => {
