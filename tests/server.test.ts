@@ -146,9 +146,10 @@ describe("HTTP responses", () => {
     ["domain", { domain: "evil.example Path=/" }],
     ["path", { path: "/app; SameSite=None" }],
     ["path", { path: "/app\nSecure" }],
-  ] as const)("should reject a header-breaking cookie %s", (_attribute, options) => {
-    expect(() => setCookie(new Response(null), "session", "abc", options)).toThrow(TypeError);
-    expect(() => clearCookie(new Response(null), "session", options)).toThrow(TypeError);
+  ] as const)("should reject a header-breaking cookie %s", (attribute, options) => {
+    const error = new TypeError(`Cookie ${attribute} contains invalid characters.`);
+    expect(() => setCookie(new Response(null), "session", "abc", options)).toThrow(error);
+    expect(() => clearCookie(new Response(null), "session", options)).toThrow(error);
   });
 
   it("should preserve valid cookie domain and path attributes", () => {
