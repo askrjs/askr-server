@@ -58,6 +58,19 @@ describe("request protection", () => {
     expect((await store.consume("recent", 1, 100)).allowed).toBe(true);
   });
 
+  it("should prune expired keys before evicting an active key", async () => {
+    let now = 0;
+    const store = createMemoryRateLimitStore({ maxEntries: 2, now: () => now });
+    await store.consume("expired", 1, 10);
+    await store.consume("active", 1, 100);
+
+    now = 20;
+    await store.consume("new", 1, 100);
+
+    expect((await store.consume("active", 1, 100)).allowed).toBe(false);
+    expect((await store.consume("expired", 1, 100)).allowed).toBe(true);
+  });
+
   it.each([0, -1, 1.5, Number.POSITIVE_INFINITY])(
     "should reject invalid memory-store capacity %s",
     (maxEntries) => {

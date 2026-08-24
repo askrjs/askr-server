@@ -37,7 +37,8 @@ export interface MemoryRateLimitStoreOptions {
 /**
  * Creates an in-memory {@link RateLimitStore} backed by a `Map`, suitable for single-process
  * deployments. Expired keys are pruned before capacity eviction, then the least recently used key
- * is evicted when `maxEntries` is reached.
+ * is evicted when `maxEntries` is reached. Eviction forgets that key's current quota; use a custom
+ * store when the key space is adversarial or cannot be safely bounded for one process.
  *
  * @param options.now - Clock function used to determine window boundaries. Defaults to `Date.now`.
  * @param options.maxEntries - Maximum retained key count. Defaults to 10,000.
