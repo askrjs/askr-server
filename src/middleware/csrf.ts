@@ -76,6 +76,27 @@ export async function createCsrfToken(secret: string, sessionId: string): Promis
   return signature(secret, sessionId);
 }
 
+type CsrfValidationOptions = {
+  readonly secret: string;
+  readonly sessionId: (context: Parameters<Middleware>[0]) => string | undefined;
+  readonly token: (
+    context: Parameters<Middleware>[0],
+  ) => string | undefined | Promise<string | undefined>;
+  readonly missingSessionMessage: string;
+};
+
+export async function csrfValidationFailure(
+  context: Parameters<Middleware>[0],
+  options: CsrfValidationOptions,
+): Promise<Response | undefined> {
+  const session = options.sessionId(context);
+  if (!session) return context.forbidden(options.missingSessionMessage);
+  const token = await options.token(context);
+  if (!token || !(await verifyCsrfToken(options.secret, session, token)))
+    return context.forbidden("CSRF token validation failed.");
+  return undefined;
+}
+
 /**
  * Creates middleware that enforces CSRF protection on state-changing requests (all methods
  * except `GET`/`HEAD`/`OPTIONS`/`TRACE`) by requiring a valid token bound to the current
@@ -90,22 +111,25 @@ export function csrf(options: CsrfOptions): Middleware {
   const field = options.formField ?? "_csrf";
   return async (context, next) => {
     if (["GET", "HEAD", "OPTIONS", "TRACE"].includes(context.request.method)) return next();
-    const session = options.sessionId?.(context) ?? context.auth.session?.id;
-    if (!session) return context.forbidden("A session is required for this request.");
-    let supplied = context.headers.get(header);
-    if (
-      !supplied &&
-      /^(?:application\/x-www-form-urlencoded|multipart\/form-data)(?:;|$)/i.test(
-        context.request.headers.get("content-type") ?? "",
-      )
-    ) {
-      const values = await readRequestFormData(context.request);
-      const value = values.get(field);
-      supplied = typeof value === "string" ? value : null;
-    }
-    if (!supplied || !(await verifyCsrfToken(options.secret, session, supplied))) {
-      return context.forbidden("CSRF token validation failed.");
-    }
+    const failure = await csrfValidationFailure(context, {
+      secret: options.secret,
+      sessionId: (value) => options.sessionId?.(value) ?? value.auth.session?.id,
+      missingSessionMessage: "A session is required for this request.",
+      token: async (value) => {
+        const supplied = value.headers.get(header);
+        if (supplied) return supplied;
+        if (
+          !/^(?:application\/x-www-form-urlencoded|multipart\/form-data)(?:;|$)/i.test(
+            value.request.headers.get("content-type") ?? "",
+          )
+        )
+          return undefined;
+        const values = await readRequestFormData(value.request);
+        const token = values.get(field);
+        return typeof token === "string" ? token : undefined;
+      },
+    });
+    if (failure) return failure;
     return next();
   };
 }
