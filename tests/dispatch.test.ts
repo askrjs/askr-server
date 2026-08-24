@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ApiRoute, Middleware } from "../src/contracts";
 import { anonymousAuthContext, createServerContext } from "../src/context";
-import { dispatchRequest, MiddlewareNextError } from "../src/dispatch";
+import { dispatchRequest, MiddlewareNextError, MiddlewareResponseError } from "../src/dispatch";
 
 const context = (method = "GET") =>
   createServerContext(
@@ -97,6 +97,43 @@ describe("request dispatch", () => {
     expect(response.status).toBe(503);
     expect(await response.text()).toBe("recovered");
     expect(errorResponse).toHaveBeenCalledWith(failure, expect.any(Object));
+  });
+
+  it("should contain a middleware failure thrown after next resolves", async () => {
+    const response = await dispatchRequest(
+      [
+        async (_context, next) => {
+          await next();
+          throw new Error("after next");
+        },
+      ],
+      context(),
+      { match: { route: route(() => new Response("discarded")), params: {} }, allowed: [] },
+      options(() => new Response("handled", { status: 500 })),
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.text()).toBe("handled");
+  });
+
+  it("should reject middleware that returns without a response or next", async () => {
+    let observed: unknown;
+    const response = await dispatchRequest(
+      [async () => undefined as unknown as Response],
+      context(),
+      { match: { route: route(() => new Response("unreached")), params: {} }, allowed: [] },
+      options((error) => {
+        observed = error;
+        return new Response("handled", { status: 500 });
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    expect(observed).toBeInstanceOf(MiddlewareResponseError);
+    expect(observed).toMatchObject({
+      name: "MiddlewareResponseError",
+      code: "middleware_response_invalid",
+    });
   });
 
   it("should execute terminal route, method, and fallback outcomes", async () => {

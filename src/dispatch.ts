@@ -20,6 +20,15 @@ export class MiddlewareNextError extends Error {
   }
 }
 
+export class MiddlewareResponseError extends TypeError {
+  readonly code = "middleware_response_invalid";
+
+  constructor() {
+    super("Middleware must return a Response or the result of next()");
+    this.name = "MiddlewareResponseError";
+  }
+}
+
 function runMiddleware(
   middleware: readonly Middleware[],
   context: ServerContext,
@@ -32,7 +41,10 @@ function runMiddleware(
       if (nextIndex <= index) throw new MiddlewareNextError();
       index = nextIndex;
       const current = middleware[nextIndex];
-      return await (current ? current(context, () => dispatch(nextIndex + 1)) : terminal(context));
+      if (!current) return await terminal(context);
+      const response = await current(context, () => dispatch(nextIndex + 1));
+      if (!(response instanceof Response)) throw new MiddlewareResponseError();
+      return response;
     } catch (error) {
       if (onError) return onError(error, context);
       throw error;
