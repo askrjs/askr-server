@@ -11,6 +11,15 @@ import type {
 import { challenge, forbidden, methodNotAllowed, notFound } from "./http/responses";
 import type { MatchResult } from "./router/matcher";
 
+export class MiddlewareNextError extends Error {
+  readonly code = "middleware_next_reused";
+
+  constructor() {
+    super("next() may only be called once per middleware invocation");
+    this.name = "MiddlewareNextError";
+  }
+}
+
 function runMiddleware(
   middleware: readonly Middleware[],
   context: ServerContext,
@@ -20,8 +29,7 @@ function runMiddleware(
   let index = -1;
   const dispatch = async (nextIndex: number): Promise<Response> => {
     try {
-      if (nextIndex <= index)
-        throw new Error("next() may only be called once per middleware invocation");
+      if (nextIndex <= index) throw new MiddlewareNextError();
       index = nextIndex;
       const current = middleware[nextIndex];
       return await (current ? current(context, () => dispatch(nextIndex + 1)) : terminal(context));
