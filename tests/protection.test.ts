@@ -46,6 +46,27 @@ describe("request protection", () => {
     expect((await store.consume("key", 1, 100)).allowed).toBe(true);
   });
 
+  it("should evict the least recently used key at the memory-store capacity", async () => {
+    const store = createMemoryRateLimitStore({ maxEntries: 2, now: () => 10 });
+    await store.consume("oldest", 1, 100);
+    await store.consume("recent", 1, 100);
+    expect((await store.consume("oldest", 1, 100)).allowed).toBe(false);
+
+    await store.consume("new", 1, 100);
+
+    expect((await store.consume("oldest", 1, 100)).allowed).toBe(false);
+    expect((await store.consume("recent", 1, 100)).allowed).toBe(true);
+  });
+
+  it.each([0, -1, 1.5, Number.POSITIVE_INFINITY])(
+    "should reject invalid memory-store capacity %s",
+    (maxEntries) => {
+      expect(() => createMemoryRateLimitStore({ maxEntries })).toThrow(
+        new TypeError("Memory rate-limit maxEntries must be a positive safe integer."),
+      );
+    },
+  );
+
   it("should accept a session-bound HMAC token from a native form", async () => {
     const secret = "test-secret";
     const token = await createCsrfToken(secret, "session-1");
