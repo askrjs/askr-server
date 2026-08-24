@@ -158,9 +158,7 @@ describe("HTTP responses", () => {
       path: "/app",
     });
 
-    expect(response.headers.getSetCookie()).toEqual([
-      "session=abc; Domain=example.com; Path=/app",
-    ]);
+    expect(response.headers.getSetCookie()).toEqual(["session=abc; Domain=example.com; Path=/app"]);
   });
 
   it("should expose matching standalone and context response helpers", async () => {
