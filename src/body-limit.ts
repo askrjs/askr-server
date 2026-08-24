@@ -91,6 +91,8 @@ export function readRequestBytes(
     }
     return output;
   })();
+  // Mark the cached promise handled for host rejection tracking without changing what callers await.
+  void pending.catch(() => undefined);
   bodies.set(request, pending);
   return pending;
 }
