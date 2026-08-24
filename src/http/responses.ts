@@ -149,12 +149,21 @@ export function methodNotAllowed(
   return problem(405, undefined, { init: { ...init, headers } });
 }
 
+const cookieDomain = /^[A-Za-z0-9.-]+$/u;
+const cookiePath = /^[\u0020-\u003A\u003C-\u007E]*$/u;
+
+function cookieAttribute(name: "domain" | "path", value: string): string {
+  const valid = name === "domain" ? cookieDomain.test(value) : cookiePath.test(value);
+  if (!valid) throw new TypeError(`Cookie ${name} contains invalid characters.`);
+  return value;
+}
+
 function serializeCookie(name: string, value: string, options: CookieOptions = {}): string {
   const parts = [`${encodeURIComponent(name)}=${encodeURIComponent(value)}`];
   if (options.maxAge !== undefined) parts.push(`Max-Age=${Math.floor(options.maxAge)}`);
   if (options.expires) parts.push(`Expires=${options.expires.toUTCString()}`);
-  if (options.domain) parts.push(`Domain=${options.domain}`);
-  if (options.path) parts.push(`Path=${options.path}`);
+  if (options.domain) parts.push(`Domain=${cookieAttribute("domain", options.domain)}`);
+  if (options.path) parts.push(`Path=${cookieAttribute("path", options.path)}`);
   if (options.sameSite)
     parts.push(`SameSite=${options.sameSite[0].toUpperCase()}${options.sameSite.slice(1)}`);
   if (options.httpOnly) parts.push("HttpOnly");
@@ -165,6 +174,7 @@ function serializeCookie(name: string, value: string, options: CookieOptions = {
 /**
  * Returns a clone of `response` with an additional `Set-Cookie` header appended, serialized
  * from `name`, `value`, and `options`.
+ * @throws {TypeError} If the cookie domain or path contains invalid attribute characters.
  */
 export function setCookie(
   response: Response,
@@ -177,7 +187,10 @@ export function setCookie(
   return next;
 }
 
-/** Returns a clone of `response` with a `Set-Cookie` header that expires and clears `name`. */
+/**
+ * Returns a clone of `response` with a `Set-Cookie` header that expires and clears `name`.
+ * @throws {TypeError} If the cookie domain or path contains invalid attribute characters.
+ */
 export function clearCookie(
   response: Response,
   name: string,
