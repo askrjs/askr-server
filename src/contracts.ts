@@ -104,12 +104,17 @@ export interface ProblemOptions {
 
 /** Valid values for the `SameSite` cookie attribute. */
 export type CookieSameSite = "strict" | "lax" | "none";
-/** Options controlling how a cookie is set via {@link ServerContext.setCookie}. */
+/**
+ * Options controlling how a cookie is set via {@link ServerContext.setCookie}.
+ * Do not derive `domain` or `path` from untrusted input; invalid attribute characters are rejected.
+ */
 export interface CookieOptions {
+  /** ASCII cookie domain without whitespace or attribute delimiters. */
   domain?: string;
   expires?: Date;
   httpOnly?: boolean;
   maxAge?: number;
+  /** Cookie path without control characters or the `;` attribute delimiter. */
   path?: string;
   sameSite?: CookieSameSite;
   secure?: boolean;

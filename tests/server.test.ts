@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  clearCookie,
   createRouter,
   createServerApp,
   defineRoutes,
@@ -138,6 +139,27 @@ describe("HTTP responses", () => {
     const first = setCookie(new Response(null), "one", "1");
     const second = setCookie(first, "two", "2");
     expect(second.headers.getSetCookie()).toEqual(["one=1", "two=2"]);
+  });
+
+  it.each([
+    ["domain", { domain: "evil.example; SameSite=None" }],
+    ["domain", { domain: "evil.example Path=/" }],
+    ["path", { path: "/app; SameSite=None" }],
+    ["path", { path: "/app\nSecure" }],
+  ] as const)("should reject a header-breaking cookie %s", (_attribute, options) => {
+    expect(() => setCookie(new Response(null), "session", "abc", options)).toThrow(TypeError);
+    expect(() => clearCookie(new Response(null), "session", options)).toThrow(TypeError);
+  });
+
+  it("should preserve valid cookie domain and path attributes", () => {
+    const response = setCookie(new Response(null), "session", "abc", {
+      domain: "example.com",
+      path: "/app",
+    });
+
+    expect(response.headers.getSetCookie()).toEqual([
+      "session=abc; Domain=example.com; Path=/app",
+    ]);
   });
 
   it("should expose matching standalone and context response helpers", async () => {
