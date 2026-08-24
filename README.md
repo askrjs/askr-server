@@ -508,8 +508,12 @@ protocol routes rather than page actions.
 
 Generic API routes can opt into `csrf({ secret })` and
 `rateLimit({ limit, windowMs })` middleware, which creates a private in-memory
-fixed-window store. Pass a custom `RateLimitStore` for shared or distributed
-state, or create one explicitly with `createMemoryRateLimitStore({ now })`.
+fixed-window store capped at 10,000 active keys. The store prunes expired keys
+before evicting the least recently used key at capacity; eviction forgets that
+key's current quota. Size `maxEntries` for the trusted key cardinality, or pass a
+custom `RateLimitStore` for adversarial, unbounded, shared, or distributed state.
+Configure the single-process bound with
+`createMemoryRateLimitStore({ now, maxEntries })`.
 Form bodies read by `csrf()` remain available to `ctx.bind()` and declared
 OpenAPI body parsing through the bounded framework body cache.
 Rate-limit rejection emits

@@ -30,34 +30,46 @@ export interface RateLimitOptions {
 /** Options for {@link createMemoryRateLimitStore}. */
 export interface MemoryRateLimitStoreOptions {
   readonly now?: () => number;
+  /** Maximum active keys retained in memory. Defaults to 10,000. */
+  readonly maxEntries?: number;
 }
 
 /**
  * Creates an in-memory {@link RateLimitStore} backed by a `Map`, suitable for single-process
- * deployments. Periodically prunes expired entries as a side effect of `consume` calls.
+ * deployments. Expired keys are pruned before capacity eviction, then the least recently used key
+ * is evicted when `maxEntries` is reached. Eviction forgets that key's current quota; use a custom
+ * store when the key space is adversarial or cannot be safely bounded for one process.
  *
  * @param options.now - Clock function used to determine window boundaries. Defaults to `Date.now`.
+ * @param options.maxEntries - Maximum retained key count. Defaults to 10,000.
  */
 export function createMemoryRateLimitStore(
   options: MemoryRateLimitStoreOptions = {},
 ): RateLimitStore {
   const entries = new Map<string, { count: number; reset: number }>();
   const now = options.now ?? Date.now;
-  let operations = 0;
+  const maxEntries = options.maxEntries ?? 10_000;
+  if (!Number.isSafeInteger(maxEntries) || maxEntries <= 0)
+    throw new TypeError("Memory rate-limit maxEntries must be a positive safe integer.");
   return {
     async consume(key, limit, windowMs) {
       const current = now();
       let entry = entries.get(key);
       if (!entry || entry.reset <= current) {
+        entries.delete(key);
+        if (entries.size >= maxEntries) {
+          for (const [candidate, value] of entries) {
+            if (value.reset <= current) entries.delete(candidate);
+          }
+        }
+        while (entries.size >= maxEntries) entries.delete(entries.keys().next().value!);
         entry = { count: 0, reset: current + windowMs };
+        entries.set(key, entry);
+      } else {
+        entries.delete(key);
         entries.set(key, entry);
       }
       entry.count += 1;
-      if (++operations % 64 === 0) {
-        for (const [candidate, value] of entries) {
-          if (value.reset <= current && candidate !== key) entries.delete(candidate);
-        }
-      }
       return {
         allowed: entry.count <= limit,
         remaining: Math.max(0, limit - entry.count),
