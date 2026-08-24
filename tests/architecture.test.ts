@@ -122,6 +122,15 @@ describe("server architecture", () => {
     expect(publicEntries).not.toMatch(/export[^\n]*\b[A-Z][A-Za-z]+Provider\b/);
   });
 
+  it("should keep context construction checked and CSRF rejection centralized", () => {
+    const context = readFileSync(resolve(root, "src/context.ts"), "utf8");
+    const actions = readFileSync(resolve(root, "src/askr/action-stages.ts"), "utf8");
+    expect(context).not.toContain("as unknown as ServerContext");
+    expect(context).toContain("satisfies ServerContext");
+    expect(actions).toContain("csrfValidationFailure");
+    expect(actions).not.toContain("verifyCsrfToken");
+  });
+
   it("should keep telemetry composition-owned without a runtime package import", () => {
     for (const file of files(resolve(root, "src"))) {
       expect(readFileSync(file, "utf8"), relative(root, file)).not.toMatch(

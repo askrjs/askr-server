@@ -1,7 +1,7 @@
 import type { ActionDescriptor } from "@askrjs/askr/actions";
 import type { Issue } from "@askrjs/schema";
 import type { ServerContext } from "../contracts";
-import { verifyCsrfToken } from "../middleware/csrf";
+import { csrfValidationFailure } from "../middleware/csrf";
 import type {
   ActionExecution,
   ActionExecutionOptions,
@@ -56,12 +56,12 @@ export async function csrfFailure(
   token: string | undefined,
 ): Promise<Response | undefined> {
   if (!csrf) return undefined;
-  const session = csrf.sessionId(context);
-  if (!session) return context.forbidden("A session is required for this action.");
-  if (!token || !(await verifyCsrfToken(csrf.secret, session, token))) {
-    return context.forbidden("CSRF token validation failed.");
-  }
-  return undefined;
+  return csrfValidationFailure(context, {
+    secret: csrf.secret,
+    sessionId: csrf.sessionId,
+    token: () => token,
+    missingSessionMessage: "A session is required for this action.",
+  });
 }
 
 export function invalidAction(

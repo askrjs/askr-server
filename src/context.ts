@@ -10,6 +10,21 @@ import * as responses from "./http/responses";
 import { createEventStream } from "./http/event-stream";
 
 const responseHelpers = Object.freeze({ ...responses });
+type ContextProperties = Pick<
+  ServerContext,
+  | "request"
+  | "url"
+  | "params"
+  | "headers"
+  | "query"
+  | "state"
+  | "auth"
+  | "signal"
+  | "sse"
+  | "telemetry"
+  | "bind"
+  | "upgrade"
+>;
 
 export function anonymousAuthContext(): AuthContext {
   return { authenticated: false, principal: null, session: null, tenant: null };
@@ -28,8 +43,7 @@ export function createServerContext(
     (dispatchWebsocket ?? options.websocket)
       ? (dispatchWebsocket ?? options.websocket)!.upgrade(request, handler, context)
       : responses.problem(501, "This server does not provide a WebSocket upgrade adapter.");
-  context = {
-    __proto__: responseHelpers,
+  context = Object.assign(Object.create(responseHelpers) as typeof responseHelpers, {
     request,
     url,
     params: {},
@@ -46,6 +60,6 @@ export function createServerContext(
       return bound as Promise<T>;
     },
     upgrade,
-  } as unknown as ServerContext;
+  } satisfies ContextProperties) satisfies ServerContext;
   return context;
 }
