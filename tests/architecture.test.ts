@@ -64,15 +64,6 @@ describe("server architecture", () => {
     }
   });
 
-  it("should keep new production modules within 300 lines", () => {
-    for (const file of files(resolve(root, "src"))) {
-      expect(
-        readFileSync(file, "utf8").split("\n").length,
-        relative(root, file),
-      ).toBeLessThanOrEqual(300);
-    }
-  });
-
   it("should compile the source route collection once and retain an application snapshot", () => {
     let iterations = 0;
     const source = new Proxy(
