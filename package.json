@@ -95,18 +95,18 @@
     "prepublishOnly": "npm run check"
   },
   "dependencies": {
-    "@askrjs/auth": ">=0.2.0 <0.3.0",
-    "@askrjs/schema": ">=0.2.0 <0.3.0"
+    "@askrjs/auth": ">=0.2.1 <0.3.0",
+    "@askrjs/schema": ">=0.2.1 <0.3.0"
   },
   "devDependencies": {
-    "@askrjs/askr": ">=0.2.0 <0.3.0",
-    "publint": "^0.3.23",
+    "@askrjs/askr": ">=0.2.3 <0.3.0",
+    "publint": "^0.3.24",
     "typescript": "^7.0.2",
-    "vite-plus": "^0.2.8",
-    "vitest": "^4.1.10"
+    "vite-plus": "^0.3.0",
+    "vitest": "^4.1.11"
   },
   "peerDependencies": {
-    "@askrjs/askr": ">=0.2.0 <0.3.0"
+    "@askrjs/askr": ">=0.2.3 <0.3.0"
   },
   "peerDependenciesMeta": {
     "@askrjs/askr": {
