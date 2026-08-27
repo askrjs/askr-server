@@ -164,6 +164,35 @@ describe("Askr page fallback", () => {
     expect(html).toContain('<main class="ak-style-layout">fragment</main>');
   });
 
+  it("should cancel a styled streaming fragment without closing its response twice", async () => {
+    let release!: () => void;
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        await new Promise<void>((resolve) => (release = resolve));
+        controller.close();
+      },
+    });
+    const response = await translateAskrPageResult(
+      {
+        kind: "render",
+        html: body,
+        styles: [{ id: "layout", cssText: ".layout{display:flex}" }],
+        params: {},
+      },
+      {} as never,
+    );
+    const reader = response.body!.getReader();
+    expect(new TextDecoder().decode((await reader.read()).value)).toContain(
+      "data-askr-style-registry",
+    );
+    const pendingRead = reader.read();
+    const cancellation = reader.cancel("client disconnected");
+    release();
+
+    await expect(cancellation).resolves.toBeUndefined();
+    await expect(pendingRead).resolves.toMatchObject({ done: true });
+  });
+
   it("should emit escaped deterministic owned metadata", async () => {
     const registry = createRouteRegistry(() =>
       route("/", () => "fragment", {
