@@ -58,6 +58,7 @@ function prependBody(prefix: string, body: BodyInit | null): BodyInit {
   const reader = source.getReader();
   const encoder = new TextEncoder();
   let prefixPending = true;
+  let cancelled = false;
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       if (prefixPending) {
@@ -66,10 +67,14 @@ function prependBody(prefix: string, body: BodyInit | null): BodyInit {
         return;
       }
       const part = await reader.read();
+      if (cancelled) return;
       if (part.done) controller.close();
       else controller.enqueue(part.value);
     },
-    cancel: (reason) => reader.cancel(reason),
+    cancel(reason) {
+      cancelled = true;
+      return reader.cancel(reason);
+    },
   });
 }
 
