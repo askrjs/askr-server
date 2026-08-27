@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { requireUser, type AuthContext } from "@askrjs/auth";
 import { createRouteRegistry, route } from "@askrjs/askr/router";
 import { createAskrPageHandler } from "../src/askr/index";
+import { translateAskrPageResult } from "../src/askr/page-handler";
 import { createServerApp, json, text } from "../src/index";
 
 const user: AuthContext = {
@@ -137,6 +138,30 @@ describe("Askr page fallback", () => {
     const response = await app.fetch(new Request("http://example.test/"));
     expect(response.headers.get("content-type")).toContain("askr-fragment=1");
     expect(await response.text()).toBe("fragment");
+  });
+
+  it("should carry request-local generated styles in the SSR fragment", async () => {
+    const response = await translateAskrPageResult(
+      {
+        kind: "render",
+        html: '<main class="ak-style-layout">fragment</main>',
+        styles: [
+          {
+            id: "ak-style-layout",
+            cssText: ".ak-style-layout{display:flex;flex-direction:column}",
+          },
+        ],
+        params: {},
+      },
+      {} as never,
+      200,
+      'nonce-"safe',
+    );
+    const html = await response.text();
+    expect(html.match(/data-askr-style-registry/g)).toHaveLength(1);
+    expect(html).toContain('nonce="nonce-&quot;safe"');
+    expect(html).toContain(".ak-style-layout{display:flex;flex-direction:column}");
+    expect(html).toContain('<main class="ak-style-layout">fragment</main>');
   });
 
   it("should emit escaped deterministic owned metadata", async () => {
