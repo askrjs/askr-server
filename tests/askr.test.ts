@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { requireUser, type AuthContext } from "@askrjs/auth";
-import { createRouteRegistry, route } from "@askrjs/askr/router";
+import { createRouteRegistry, fallback, route } from "@askrjs/askr/router";
 import { createAskrPageHandler } from "../src/askr/index";
+import { translateAskrPageResult } from "../src/askr/page-handler";
 import { createServerApp, json, text } from "../src/index";
 
 const user: AuthContext = {
@@ -137,6 +138,72 @@ describe("Askr page fallback", () => {
     const response = await app.fetch(new Request("http://example.test/"));
     expect(response.headers.get("content-type")).toContain("askr-fragment=1");
     expect(await response.text()).toBe("fragment");
+  });
+
+  it("should render a root fallback with a 404 response status", async () => {
+    const registry = createRouteRegistry(() => {
+      route("/", () => "home");
+      fallback(() => "not found page");
+    });
+    const app = createServerApp({ fallback: createAskrPageHandler({ registry }) });
+
+    const response = await app.fetch(new Request("http://example.test/missing"));
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).toContain("not found page");
+  });
+
+  it("should carry request-local generated styles in the SSR fragment", async () => {
+    const response = await translateAskrPageResult(
+      {
+        kind: "render",
+        html: '<main class="ak-style-layout">fragment</main>',
+        styles: [
+          {
+            id: "ak-style-layout",
+            cssText: ".ak-style-layout{display:flex;flex-direction:column}",
+          },
+        ],
+        params: {},
+      },
+      {} as never,
+      200,
+      'nonce-"safe',
+    );
+    const html = await response.text();
+    expect(html.match(/data-askr-style-registry/g)).toHaveLength(1);
+    expect(html).toContain('nonce="nonce-&quot;safe"');
+    expect(html).toContain(".ak-style-layout{display:flex;flex-direction:column}");
+    expect(html).toContain('<main class="ak-style-layout">fragment</main>');
+  });
+
+  it("should cancel a styled streaming fragment without closing its response twice", async () => {
+    let release!: () => void;
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        await new Promise<void>((resolve) => (release = resolve));
+        controller.close();
+      },
+    });
+    const response = await translateAskrPageResult(
+      {
+        kind: "render",
+        html: body,
+        styles: [{ id: "layout", cssText: ".layout{display:flex}" }],
+        params: {},
+      },
+      {} as never,
+    );
+    const reader = response.body!.getReader();
+    expect(new TextDecoder().decode((await reader.read()).value)).toContain(
+      "data-askr-style-registry",
+    );
+    const pendingRead = reader.read();
+    const cancellation = reader.cancel("client disconnected");
+    release();
+
+    await expect(cancellation).resolves.toBeUndefined();
+    await expect(pendingRead).resolves.toMatchObject({ done: true });
   });
 
   it("should emit escaped deterministic owned metadata", async () => {
