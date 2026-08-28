@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { requireUser, type AuthContext } from "@askrjs/auth";
-import { createRouteRegistry, route } from "@askrjs/askr/router";
+import { createRouteRegistry, fallback, route } from "@askrjs/askr/router";
 import { createAskrPageHandler } from "../src/askr/index";
 import { translateAskrPageResult } from "../src/askr/page-handler";
 import { createServerApp, json, text } from "../src/index";
@@ -138,6 +138,19 @@ describe("Askr page fallback", () => {
     const response = await app.fetch(new Request("http://example.test/"));
     expect(response.headers.get("content-type")).toContain("askr-fragment=1");
     expect(await response.text()).toBe("fragment");
+  });
+
+  it("should render a root fallback with a 404 response status", async () => {
+    const registry = createRouteRegistry(() => {
+      route("/", () => "home");
+      fallback(() => "not found page");
+    });
+    const app = createServerApp({ fallback: createAskrPageHandler({ registry }) });
+
+    const response = await app.fetch(new Request("http://example.test/missing"));
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).toContain("not found page");
   });
 
   it("should carry request-local generated styles in the SSR fragment", async () => {

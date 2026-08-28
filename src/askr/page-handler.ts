@@ -258,6 +258,7 @@ export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler 
       framework: token ? { csrf: token } : undefined,
       cspNonce,
     });
-    return translateAskrPageResult(result, context, 200, cspNonce);
+    const status = result.kind === "render" && result.record?.isFallback ? 404 : 200;
+    return translateAskrPageResult(result, context, status, cspNonce);
   };
 }
