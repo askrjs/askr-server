@@ -40,10 +40,49 @@ function headerValue(value: string): string {
   return output;
 }
 
-async function translate(
+function escapeStyleRawText(value: string): string {
+  return value.replace(/<\/style/gi, "<\\/style");
+}
+
+function styleCarrier(styles: readonly { cssText: string }[], cspNonce?: string): string {
+  if (styles.length === 0) return "";
+  const nonce = cspNonce
+    ? ` nonce="${headerValue(cspNonce).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}"`
+    : "";
+  return `<style data-askr-style-registry="true"${nonce}>${escapeStyleRawText(styles.map((style) => style.cssText).join("\n"))}\n</style>`;
+}
+
+function prependBody(prefix: string, body: BodyInit | null): BodyInit {
+  if (!body) return prefix;
+  const source = new Response(body).body!;
+  const reader = source.getReader();
+  const encoder = new TextEncoder();
+  let prefixPending = true;
+  let cancelled = false;
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      if (prefixPending) {
+        prefixPending = false;
+        controller.enqueue(encoder.encode(prefix));
+        return;
+      }
+      const part = await reader.read();
+      if (cancelled) return;
+      if (part.done) controller.close();
+      else controller.enqueue(part.value);
+    },
+    cancel(reason) {
+      cancelled = true;
+      return reader.cancel(reason);
+    },
+  });
+}
+
+export async function translateAskrPageResult(
   result: RenderRouteRequestResult,
   context: ServerContext,
   status = 200,
+  cspNonce?: string,
 ): Promise<Response> {
   if (result.kind === "no-match") return context.notFound();
   if (result.kind === "redirect") {
@@ -63,7 +102,9 @@ async function translate(
     }
     if (metadata.html?.dir) headers.set("x-askr-html-dir", metadata.html.dir);
   }
-  return new Response(result.stream ?? result.html, { status, headers });
+  const carrier = styleCarrier(result.styles, cspNonce);
+  const body = result.stream ?? result.html;
+  return new Response(carrier ? prependBody(carrier, body) : body, { status, headers });
 }
 
 function splitPath(pathname: string): string[] {
@@ -197,7 +238,7 @@ export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler 
           },
           cspNonce,
         });
-        return translate(result, context, 422);
+        return translateAskrPageResult(result, context, 422, cspNonce);
       }
     }
     if (context.request.method !== "GET" && context.request.method !== "HEAD") {
@@ -217,6 +258,7 @@ export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler 
       framework: token ? { csrf: token } : undefined,
       cspNonce,
     });
-    return translate(result, context);
+    const status = result.kind === "render" && result.record?.isFallback ? 404 : 200;
+    return translateAskrPageResult(result, context, status, cspNonce);
   };
 }
