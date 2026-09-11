@@ -60,17 +60,10 @@ callback's `finally`/cleanup path.
 ## Create an application
 
 ```ts
-import { createServerApp, json } from "@askrjs/server";
+import { createRouter, createServerApp, json } from "@askrjs/server";
 
-const app = createServerApp({
-  routes: [
-    {
-      method: "GET",
-      path: "/health",
-      handler: () => json({ status: "ok" }),
-    },
-  ],
-});
+const router = createRouter().get("/health", () => json({ status: "ok" }));
+const app = createServerApp(router);
 
 const response = await app.fetch(new Request("https://example.test/health"));
 ```

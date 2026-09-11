@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { registerAuthRoutes } from "../src/auth";
-import { createServerApp } from "../src/application";
+import { createServerApp } from "./test-app";
 import { createApi, schema } from "../src/openapi";
 
 function authApplication() {

@@ -252,7 +252,6 @@ export interface ProbeOptions {
 /** Options accepted by {@link createServerApp} to configure a server application. */
 export interface ServerAppOptions {
   router?: Router;
-  routes?: readonly ApiRoute[];
   middleware?: readonly Middleware[];
   onError?: (error: unknown, context: ServerContext) => Response | Promise<Response>;
   onAccessDenied?: AccessDeniedHandler;

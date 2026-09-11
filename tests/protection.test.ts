@@ -1,6 +1,6 @@
 import type { AuthContext } from "@askrjs/auth";
 import { describe, expect, it, vi } from "vitest";
-import { createServerApp } from "../src/application";
+import { createServerApp } from "./test-app";
 import { createApi, schema } from "../src/openapi/index";
 import {
   cors,

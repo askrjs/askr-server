@@ -1,6 +1,6 @@
 import { createRouteRegistry, defer, Resolve, route, routeData } from "@askrjs/askr/router";
 import { describe, expect, it } from "vitest";
-import { createServerApp } from "../src/application";
+import { createServerApp } from "./test-app";
 import { createAskrPageHandler } from "../src/askr/page-handler";
 
 interface PageData {

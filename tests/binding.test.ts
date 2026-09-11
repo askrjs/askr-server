@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createServerApp } from "../src/application";
+import { createServerApp } from "./test-app";
 import { text } from "../src/http/responses";
 
 function bindingApp(path = "/items/{id}") {

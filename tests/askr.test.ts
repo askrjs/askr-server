@@ -3,7 +3,8 @@ import { requireUser, type AuthContext } from "@askrjs/auth";
 import { createRouteRegistry, fallback, route } from "@askrjs/askr/router";
 import { createAskrPageHandler } from "../src/askr/index";
 import { translateAskrPageResult } from "../src/askr/page-handler";
-import { createServerApp, json, text } from "../src/index";
+import { json, text } from "../src/index";
+import { createServerApp } from "./test-app";
 
 const user: AuthContext = {
   authenticated: true,
