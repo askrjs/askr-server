@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bind } from "../src/binding";
-import { createServerApp } from "../src/application";
+import { createServerApp } from "./test-app";
 
 function echoApp(method: string | readonly string[] = "POST", path = "/items/{id}") {
   return createServerApp({

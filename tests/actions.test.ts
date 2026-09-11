@@ -2,7 +2,7 @@ import type { AuthContext } from "@askrjs/auth";
 import { createRouteRegistry, route } from "@askrjs/askr/router";
 import { schema } from "@askrjs/schema";
 import { describe, expect, it, vi } from "vitest";
-import { createServerApp } from "../src/application";
+import { createServerApp } from "./test-app";
 import { defineServerActions, handleAction, type ActionRegistry } from "../src/askr/actions";
 import { createAskrPageHandler } from "../src/askr/page-handler";
 

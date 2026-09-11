@@ -2,7 +2,7 @@ import { createRouteRegistry, route } from "@askrjs/askr/router";
 import { defineServerQueries, defineQuery, serveQuery } from "@askrjs/askr/data";
 import { schema } from "@askrjs/schema";
 import { describe, expect, it, vi } from "vitest";
-import { createServerApp } from "../src/application";
+import { createServerApp } from "./test-app";
 import { defineServerActions, handleAction } from "../src/askr/actions";
 import { createAskrPageHandler } from "../src/askr/page-handler";
 import type {

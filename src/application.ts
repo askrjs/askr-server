@@ -40,14 +40,14 @@ export function createServerApp(router: Router): ServerApp;
 /**
  * Creates a transport-neutral server application. See the {@link Router} overload for details.
  *
- * @param options - Configuration including router, routes, middleware, auth, telemetry,
+ * @param options - Configuration including router, middleware, auth, telemetry,
  * error handling, and request-size limits.
  * @returns A {@link ServerApp} exposing a `fetch(request, dispatchOptions)` method.
  */
 export function createServerApp(options?: ServerAppOptions): ServerApp;
 export function createServerApp(input: Router | ServerAppOptions = {}): ServerApp {
   const options: ServerAppOptions = isRouter(input) ? { router: input } : input;
-  const routes = options.routes ?? options.router?.routes ?? [];
+  const routes = options.router?.routes ?? [];
   const middleware = [...(options.router?.middleware ?? []), ...(options.middleware ?? [])];
   const matcher = createMatcher(routes);
   const applicationMaximum = validateMaxRequestBytes(

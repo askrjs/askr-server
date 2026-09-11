@@ -1,6 +1,6 @@
 import { requireAnonymous, requireUser } from "@askrjs/auth";
 import { describe, expect, it, vi } from "vitest";
-import { createServerApp } from "../src/application";
+import { createServerApp } from "./test-app";
 import { createApi, schema, security } from "../src/openapi/index";
 
 describe("OpenAPI public contract", () => {

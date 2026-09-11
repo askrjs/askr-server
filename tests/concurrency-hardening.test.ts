@@ -1,6 +1,6 @@
 import type { AuthContext } from "@askrjs/auth";
 import { describe, expect, it } from "vitest";
-import { createServerApp } from "../src/application";
+import { createServerApp } from "./test-app";
 import { PayloadTooLargeError, readRequestBytes } from "../src/body-limit";
 import type { ApiRoute, Middleware } from "../src/contracts";
 import { anonymousAuthContext, createServerContext } from "../src/context";

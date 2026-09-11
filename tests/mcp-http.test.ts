@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createServerApp } from "../src/application";
+import { createServerApp } from "./test-app";
 import { registerMcpRoutes } from "../src/mcp/http";
 import { createMcpServer } from "../src/mcp/server";
 import { createRouter } from "../src/router/router";

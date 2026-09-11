@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createServerApp, text } from "../src/index";
+import { text } from "../src/index";
+import { createServerApp } from "./test-app";
 import { cors } from "../src/middleware/index";
 
 function appWith(middleware = cors()) {

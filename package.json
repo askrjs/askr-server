@@ -1,6 +1,6 @@
 {
   "name": "@askrjs/server",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Transport-neutral HTTP application core built on Web Request and Response",
   "keywords": [
     "askr",
@@ -95,18 +95,18 @@
     "prepublishOnly": "npm run check"
   },
   "dependencies": {
-    "@askrjs/auth": ">=0.2.1 <0.3.0",
-    "@askrjs/schema": ">=0.2.1 <0.3.0"
+    "@askrjs/auth": ">=0.3.0 <0.4.0",
+    "@askrjs/schema": ">=0.3.0 <0.4.0"
   },
   "devDependencies": {
-    "@askrjs/askr": ">=0.2.3 <0.3.0",
+    "@askrjs/askr": ">=0.3.0 <0.4.0",
     "publint": "^0.3.24",
     "typescript": "^7.0.2",
     "vite-plus": "^0.3.1",
     "vitest": "^4.1.11"
   },
   "peerDependencies": {
-    "@askrjs/askr": ">=0.2.3 <0.3.0"
+    "@askrjs/askr": ">=0.3.0 <0.4.0"
   },
   "peerDependenciesMeta": {
     "@askrjs/askr": {

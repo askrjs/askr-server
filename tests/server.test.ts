@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import {
   clearCookie,
   createRouter,
-  createServerApp,
   defineRoutes,
   json,
   setCookie,
   text,
   type Middleware,
 } from "../src/index";
+import { createServerApp } from "./test-app";
 import { requireAnonymous, requireRole, requireUser, type AuthContext } from "@askrjs/auth";
 import { cors, requestId, securityHeaders, trace } from "../src/middleware/index";
 import { enforceHttps } from "../src/middleware/enforce-https";

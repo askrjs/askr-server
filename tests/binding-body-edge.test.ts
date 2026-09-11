@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bind, BindingError } from "../src/binding";
-import { createServerApp } from "../src/application";
+import { createServerApp } from "./test-app";
 import { text } from "../src/http/responses";
 
 function echoApp(method: string | readonly string[] = "POST") {
