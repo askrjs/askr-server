@@ -28,7 +28,7 @@ const save = Object.freeze({
 
 function actionApp(
   actionRegistry: ActionRegistry,
-  options: { redirect?: boolean; auth?: AuthContext } = {},
+  options: { redirect?: boolean; staticPath?: string; auth?: AuthContext } = {},
 ) {
   const registry = createRouteRegistry(() => {
     route("/items/{id}", () => "item", {
@@ -36,6 +36,7 @@ function actionApp(
       loader: () => "loader-value",
     });
     if (options.redirect) route("/done", () => "done");
+    if (options.staticPath) route(options.staticPath, () => "static");
     route("/other", () => "other");
   });
   return createServerApp({
@@ -280,6 +281,22 @@ describe("page actions", () => {
       detail: "Action returned an invalid route redirect.",
     });
     expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("should allow redirects to percent-encoded static route paths", async () => {
+    const actions = defineServerActions(
+      { dependencies: { store: "store-1" }, csrf: false },
+      handleAction(save, () => ({ redirect: "/caf%C3%A9" })),
+    );
+    const response = await actionApp(actions, { staticPath: "/café" }).fetch(
+      new Request("http://example.test/items/42", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ _askr_action: save.id, name: "Ada" }),
+      }),
+    );
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/caf%C3%A9");
   });
 
   it("should apply ordered set and clear cookies to a native redirect", async () => {
