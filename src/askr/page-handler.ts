@@ -1,14 +1,7 @@
 import { renderRouteRequest, type RenderRouteRequestResult } from "@askrjs/askr/ssr";
 import type { ServerQueryRegistry } from "@askrjs/askr/data";
-import type {
-  ParsedSegment,
-  RouteAuthOptions,
-  RouteManifest,
-  RouteContext,
-  RouteRecord,
-  RouteRegistry,
-} from "@askrjs/askr/router";
-import { resolveRouteMeta, serializeRouteMeta } from "@askrjs/askr/router";
+import type { RouteAuthOptions, RouteContext, RouteRegistry } from "@askrjs/askr/router";
+import { matchRoute, resolveRouteMeta, serializeRouteMeta } from "@askrjs/askr/router";
 import { resolveRouteRequest } from "@askrjs/askr/router";
 import type { Handler, ServerContext } from "../contracts";
 import type { ActionRegistry } from "./actions";
@@ -107,63 +100,6 @@ export async function translateAskrPageResult(
   return new Response(carrier ? prependBody(carrier, body) : body, { status, headers });
 }
 
-function splitPath(pathname: string): string[] {
-  const normalized = pathname.endsWith("/") && pathname !== "/" ? pathname.slice(0, -1) : pathname;
-  return normalized === "/" ? [] : normalized.replace(/^\//, "").split("/");
-}
-
-function decodeParam(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
-
-function matchSegments(
-  parts: readonly string[],
-  segments: readonly ParsedSegment[],
-): Record<string, string> | undefined {
-  if (segments.length === 1 && segments[0]?.kind === "catchall") {
-    return {
-      "*": parts.length === 0 ? "/" : parts.length === 1 ? parts[0]! : `/${parts.join("/")}`,
-    };
-  }
-  const splat = segments.findIndex((segment) => segment.kind === "splat");
-  if (splat === -1 && parts.length !== segments.length) return undefined;
-  if (splat !== -1 && (splat !== segments.length - 1 || parts.length < splat)) return undefined;
-  const params: Record<string, string> = {};
-  for (let index = 0; index < segments.length; index += 1) {
-    const segment = segments[index]!;
-    const part = parts[index];
-    if (segment.kind === "static") {
-      if (segment.value !== part) return undefined;
-    } else if (segment.kind === "splat") {
-      params[segment.value] = parts.slice(index).map(decodeParam).join("/");
-      return params;
-    } else if (segment.kind === "param") {
-      if (part === undefined) return undefined;
-      params[segment.value] = decodeParam(part);
-    } else {
-      if (part === undefined) return undefined;
-      params["*"] = part;
-    }
-  }
-  return params;
-}
-
-function findRoute(
-  manifest: RouteManifest,
-  pathname: string,
-): { readonly record: RouteRecord; readonly params: Record<string, string> } | undefined {
-  const parts = splitPath(pathname);
-  for (const record of manifest.records) {
-    const params = matchSegments(parts, record.segments);
-    if (params) return { record, params };
-  }
-  return undefined;
-}
-
 function routeContext(context: ServerContext, params: Record<string, string>): RouteContext {
   return {
     mode: "ssr",
@@ -217,7 +153,8 @@ export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler 
         authorized: page.record.options.actions ?? [],
         params: page.params,
         policies: page.record.options.policies ?? [],
-        allowsRedirect: (location) => findRoute(manifest, location.pathname) !== undefined,
+        allowsRedirect: (location) =>
+          matchRoute(location.pathname, { registry: options.registry }) !== null,
       });
       if (execution?.kind === "response") return execution.response;
       if (execution?.kind === "invalid") {
