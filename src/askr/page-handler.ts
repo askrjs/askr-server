@@ -4,8 +4,9 @@ import type { RouteAuthOptions, RouteContext, RouteRegistry } from "@askrjs/askr
 import { matchRoute, resolveRouteMeta, serializeRouteMeta } from "@askrjs/askr/router";
 import { resolveRouteRequest } from "@askrjs/askr/router";
 import type { Handler, ServerContext } from "../contracts";
-import type { ActionRegistry } from "./actions";
+import type { ActionExecutionOptions, ActionRegistry } from "./actions";
 import type { CspNonceProvider } from "../csp-nonce";
+import { isDevelopment } from "../development";
 
 /** Options for {@link createAskrPageHandler}. */
 export interface AskrPageHandlerOptions {
@@ -100,6 +101,49 @@ export async function translateAskrPageResult(
   return new Response(carrier ? prependBody(carrier, body) : body, { status, headers });
 }
 
+// Development warnings are deduplicated per action and target; the set is
+// bounded because redirect targets can carry request data.
+const fallbackRedirectWarningLimit = 256;
+
+// A match is fallback-only when every record with the matched pattern is a
+// fallback. A concrete route may share a scoped fallback's pattern, and then
+// core matches the concrete route first, so it must not warn.
+function matchesOnlyFallback(registry: RouteRegistry, path: string): boolean {
+  let fallbackFound = false;
+  for (const record of registry.manifest.records) {
+    if (record.path !== path) continue;
+    if (!record.isFallback) return false;
+    fallbackFound = true;
+  }
+  return fallbackFound;
+}
+
+/**
+ * Accepts same-origin redirects to any path core `matchRoute` matches, which
+ * includes paths handled only by a `fallback()`. In development, those redirects
+ * log a warning, because they render a not-found view and are usually typos.
+ */
+function redirectGate(registry: RouteRegistry): ActionExecutionOptions["allowsRedirect"] {
+  const warned = new Set<string>();
+  return (location, action) => {
+    const match = matchRoute(location.pathname, { registry });
+    if (match === null) return false;
+    if (isDevelopment() && matchesOnlyFallback(registry, match.path)) {
+      const key = `${action}\n${location.pathname}`;
+      if (!warned.has(key)) {
+        if (warned.size >= fallbackRedirectWarningLimit) warned.clear();
+        warned.add(key);
+        console.warn(
+          `[Askr] Action "${action}" redirected to "${location.pathname}", which matches only a ` +
+            `fallback route, not a page. It will render that section's not-found view; the ` +
+            `redirect target may be a typo.`,
+        );
+      }
+    }
+    return true;
+  };
+}
+
 function routeContext(context: ServerContext, params: Record<string, string>): RouteContext {
   return {
     mode: "ssr",
@@ -127,6 +171,7 @@ export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler 
     throw new Error("createAskrPageHandler requires a route registry.");
   }
   const { manifest } = options.registry;
+  const allowsRedirect = redirectGate(options.registry);
   return async (context) => {
     const cspNonce = options.cspNonce?.(context);
     if (context.request.method === "POST" && options.actions) {
@@ -153,8 +198,7 @@ export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler 
         authorized: page.record.options.actions ?? [],
         params: page.params,
         policies: page.record.options.policies ?? [],
-        allowsRedirect: (location) =>
-          matchRoute(location.pathname, { registry: options.registry }) !== null,
+        allowsRedirect,
       });
       if (execution?.kind === "response") return execution.response;
       if (execution?.kind === "invalid") {

@@ -81,8 +81,35 @@ describe("action redirects to fallback-only paths", () => {
       expect(warn).toHaveBeenCalledWith(warning("/l/en/missing/deep"));
     });
 
+    it("should return the enhanced envelope unchanged and warn", async () => {
+      const response = await pageHandler(
+        createRouteRegistry(routeTable),
+        () => "/l/en/missing?x=1",
+      ).fetch(
+        new Request("http://example.test/items/42", {
+          method: "POST",
+          headers: {
+            accept: "application/vnd.askr.action+json;v=1",
+            "content-type": "application/json",
+            "x-askr-action": save.id,
+          },
+          body: "{}",
+        }),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        version: 1,
+        ok: true,
+        invalidates: [],
+        redirect: "/l/en/missing?x=1",
+      });
+      expect(warn).toHaveBeenCalledWith(warning("/l/en/missing"));
+    });
+
     it("should not warn for a redirect to a concrete page", async () => {
-      const response = await post(pageHandler(createRouteRegistry(routeTable), () => "/l/en/about"));
+      const response = await post(
+        pageHandler(createRouteRegistry(routeTable), () => "/l/en/about"),
+      );
       expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe("/l/en/about");
       expect(warn).not.toHaveBeenCalled();
@@ -154,7 +181,10 @@ describe("action redirects to fallback-only paths", () => {
       );
       expect(concrete.status).toBe(303);
       expect(warn).not.toHaveBeenCalled();
-      const missing = await post(pageHandler(registry, () => "/app/l/en/missing"), "/app/items/42");
+      const missing = await post(
+        pageHandler(registry, () => "/app/l/en/missing"),
+        "/app/items/42",
+      );
       expect(missing.status).toBe(303);
       expect(missing.headers.get("location")).toBe("/app/l/en/missing");
       expect(warn).toHaveBeenCalledWith(warning("/app/l/en/missing"));
@@ -182,6 +212,17 @@ describe("action redirects to fallback-only paths", () => {
       expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe("/l/en/missing/deep");
       expect(warn).not.toHaveBeenCalled();
+    });
+
+    it("should return the same response as development", async () => {
+      const app = pageHandler(createRouteRegistry(routeTable), () => "/l/en/missing?x=1#h");
+      const production = await post(app);
+      vi.stubEnv("NODE_ENV", "development");
+      const development = await post(app);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(development.status).toBe(production.status);
+      expect([...development.headers]).toEqual([...production.headers]);
+      expect(await development.text()).toBe(await production.text());
     });
   });
 });

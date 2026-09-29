@@ -467,6 +467,21 @@ are attached. Enhanced redirects are returned in the envelope so the browser
 can perform full-document navigation after updating action state and
 invalidations.
 
+A redirect target counts as a matched route when core `matchRoute` matches it.
+That includes paths that only a `fallback()` handles, such as
+`/l/en/missing` under `page("/l/{lang}")` with a scoped fallback. These
+redirects are accepted, and the response is the same as for any other
+redirect. They render that section's not-found view, so outside production
+(`NODE_ENV !== "production"`) the page handler logs one `console.warn` per
+action and target path, in case the target is a typo:
+
+```text
+[Askr] Action "save-item" redirected to "/l/en/missing", which matches only a fallback route, not a page. It will render that section's not-found view; the redirect target may be a typo.
+```
+
+Production neither logs nor checks for these. A redirect that matches no route,
+fallback included, still fails with `500 Action returned an invalid route redirect.`
+
 `ActionForm` is the native, server-driven primitive. `action().submit()` is the
 explicit client-driven primitive; forms are never intercepted automatically.
 Both paths use the same descriptor, handler, validation, cookie, and redirect
