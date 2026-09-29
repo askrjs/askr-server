@@ -103,7 +103,10 @@ export function negotiateActionOutcome(
     : enhanced
       ? undefined
       : new URL(`${context.url.pathname}${context.url.search}`, context.url);
-  if (location && (location.origin !== context.url.origin || !options.allowsRedirect(location))) {
+  if (
+    location &&
+    (location.origin !== context.url.origin || !options.allowsRedirect(location, descriptor.id))
+  ) {
     return {
       kind: "response",
       response: context.problem(500, "Action returned an invalid route redirect."),
