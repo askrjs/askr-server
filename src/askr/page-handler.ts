@@ -4,7 +4,7 @@ import type { RouteAuthOptions, RouteContext, RouteRegistry } from "@askrjs/askr
 import { matchRoute, resolveRouteMeta, serializeRouteMeta } from "@askrjs/askr/router";
 import { resolveRouteRequest } from "@askrjs/askr/router";
 import type { Handler, ServerContext } from "../contracts";
-import type { ActionExecutionOptions, ActionRegistry } from "./actions";
+import type { ActionRegistry } from "./actions";
 import type { CspNonceProvider } from "../csp-nonce";
 import { isDevelopment } from "../development";
 
@@ -122,13 +122,17 @@ function matchesOnlyFallback(registry: RouteRegistry, path: string): boolean {
  * Accepts same-origin redirects to any path core `matchRoute` matches, which
  * includes paths handled only by a `fallback()`. In development, those redirects
  * log a warning, because they render a not-found view and are usually typos.
+ * An action declared on a catch-all page (`route("/*", ..., { actions })`) that
+ * returns to that same pattern is expected and does not warn.
  */
-function redirectGate(registry: RouteRegistry): ActionExecutionOptions["allowsRedirect"] {
+function redirectGate(
+  registry: RouteRegistry,
+): (location: URL, action: string, fromPath: string) => boolean {
   const warned = new Set<string>();
-  return (location, action) => {
+  return (location, action, fromPath) => {
     const match = matchRoute(location.pathname, { registry });
     if (match === null) return false;
-    if (isDevelopment() && matchesOnlyFallback(registry, match.path)) {
+    if (isDevelopment() && match.path !== fromPath && matchesOnlyFallback(registry, match.path)) {
       const key = `${action}\n${location.pathname}`;
       if (!warned.has(key)) {
         if (warned.size >= fallbackRedirectWarningLimit) warned.clear();
@@ -198,7 +202,7 @@ export function createAskrPageHandler(options: AskrPageHandlerOptions): Handler 
         authorized: page.record.options.actions ?? [],
         params: page.params,
         policies: page.record.options.policies ?? [],
-        allowsRedirect,
+        allowsRedirect: (location, action) => allowsRedirect(location, action, page.record.path),
       });
       if (execution?.kind === "response") return execution.response;
       if (execution?.kind === "invalid") {

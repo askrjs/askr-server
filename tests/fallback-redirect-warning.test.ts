@@ -128,6 +128,21 @@ describe("action redirects to fallback-only paths", () => {
       expect(warn).not.toHaveBeenCalled();
     });
 
+    it("should not warn when a catch-all page's own action returns to it", async () => {
+      const registry = createRouteRegistry(() => {
+        route("/*", NotFound, { actions: [save] });
+      });
+      const actions = defineServerActions(
+        { dependencies: {}, csrf: false },
+        handleAction(save, () => ({})),
+      );
+      const app = createServerApp({ fallback: createAskrPageHandler({ registry, actions }) });
+      const implicit = await post(app, "/anything");
+      expect(implicit.status).toBe(303);
+      expect(implicit.headers.get("location")).toBe("/anything");
+      expect(warn).not.toHaveBeenCalled();
+    });
+
     it("should warn once per action and target when the action repeats", async () => {
       let target = "/l/en/missing";
       const app = pageHandler(createRouteRegistry(routeTable), () => target);
