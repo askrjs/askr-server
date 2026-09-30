@@ -34,6 +34,22 @@ function headerValue(value: string): string {
   return output;
 }
 
+function encodeHeaderText(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function requiresUtf8HeaderEncoding(...values: (string | undefined)[]): boolean {
+  return values.some(
+    (value) =>
+      value !== undefined && [...value].some((character) => character.charCodeAt(0) > 0xff),
+  );
+}
+
 function escapeStyleRawText(value: string): string {
   return value.replace(/<\/style/gi, "<\\/style");
 }
@@ -89,12 +105,14 @@ export async function translateAskrPageResult(
   const headers = new Headers({ "content-type": "text/html; charset=utf-8; askr-fragment=1" });
   if (result.record) {
     const metadata = await resolveRouteMeta(result.record, routeContext(context, result.params));
-    const head = headerValue(serializeRouteMeta(metadata));
-    if (head) headers.set("x-askr-head", head);
-    if (metadata.html?.lang) {
-      headers.set("x-askr-html-lang", headerValue(metadata.html.lang));
-    }
-    if (metadata.html?.dir) headers.set("x-askr-html-dir", metadata.html.dir);
+    const head = serializeRouteMeta(metadata);
+    const lang = metadata.html?.lang;
+    const dir = metadata.html?.dir;
+    const encode = requiresUtf8HeaderEncoding(head, lang, dir);
+    if (encode) headers.set("x-askr-encoding", "base64url-v1");
+    if (head) headers.set("x-askr-head", encode ? encodeHeaderText(head) : headerValue(head));
+    if (lang) headers.set("x-askr-html-lang", encode ? encodeHeaderText(lang) : headerValue(lang));
+    if (dir) headers.set("x-askr-html-dir", encode ? encodeHeaderText(dir) : dir);
   }
   const carrier = styleCarrier(result.styles, cspNonce);
   const body = result.stream ?? result.html;
