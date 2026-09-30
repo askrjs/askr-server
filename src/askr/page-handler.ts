@@ -45,7 +45,8 @@ function encodeHeaderText(value: string): string {
 
 function requiresUtf8HeaderEncoding(...values: (string | undefined)[]): boolean {
   return values.some(
-    (value) => value !== undefined && [...value].some((character) => character.charCodeAt(0) > 0xff),
+    (value) =>
+      value !== undefined && [...value].some((character) => character.charCodeAt(0) > 0xff),
   );
 }
 
