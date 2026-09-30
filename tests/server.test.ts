@@ -4,6 +4,7 @@ import {
   createRouter,
   defineRoutes,
   json,
+  redirect,
   setCookie,
   text,
   type Middleware,
@@ -21,6 +22,15 @@ const authenticated: AuthContext = {
 };
 
 describe("HTTP responses", () => {
+  it("should encode Unicode redirect locations as valid header values", () => {
+    const response = redirect("/tags/日本?q=東京#詳細");
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe(
+      "/tags/%E6%97%A5%E6%9C%AC?q=%E6%9D%B1%E4%BA%AC#%E8%A9%B3%E7%B4%B0",
+    );
+  });
+
   it.each([
     { headers: { "x-value": "object" } },
     { headers: [["x-value", "tuple"]] as [string, string][] },

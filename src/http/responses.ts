@@ -37,7 +37,10 @@ export function text(value: string, init?: ResponseInit): Response {
 
 /** Builds a redirect response with an empty body and a `Location` header. Defaults to `302 Found`. */
 export function redirect(location: string, status: 301 | 302 | 303 | 307 | 308 = 302): Response {
-  return new Response(null, { status, headers: { location } });
+  const headerLocation = location.replace(/[\u0080-\u{10FFFF}]/gu, (character) =>
+    encodeURIComponent(character),
+  );
+  return new Response(null, { status, headers: { location: headerLocation } });
 }
 
 const statusTitles: Record<number, string> = {
