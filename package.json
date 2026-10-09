@@ -23,7 +23,9 @@
   },
   "files": [
     "dist/**/*.js",
-    "dist/**/*.d.ts"
+    "dist/**/*.d.ts",
+    "CHANGELOG.md",
+    "docs/**/*.md"
   ],
   "type": "module",
   "main": "./dist/index.js",
@@ -83,14 +85,16 @@
     "bench:tier4": "vp test bench --run --reporter=default --config vitest.bench.tier4.config.ts",
     "fmt": "vp fmt .",
     "lint": "vp lint src tests benches vite.config.ts vitest.*.config.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.benchmarks.json",
     "test": "npm run test:unit && npm run test:checks",
     "test:unit": "vp test run -c vitest.test.unit.config.ts",
+    "test:coverage": "npm run test:unit -- --coverage",
     "test:checks": "npm run typecheck && npm run test:types",
     "test:types": "npm run build && tsc -p tests/types/tsconfig.json",
     "test:publint": "publint",
     "pack:check": "node tests/package-artifacts.js",
-    "check": "npm run lint && npm run typecheck && npm test && npm run build && npm run test:publint && npm run pack:check",
+    "test:packed": "node tests/package-consumers.js",
+    "check": "npm run lint && npm run typecheck && npm run test:coverage && npm run test:types && npm run test:publint && npm run pack:check && npm run test:packed",
     "prepack": "npm run build",
     "prepublishOnly": "npm run check"
   },
@@ -100,6 +104,8 @@
   },
   "devDependencies": {
     "@askrjs/askr": ">=0.4.0 <0.5.0",
+    "@types/node": "24.19.2",
+    "@vitest/coverage-v8": "4.1.11",
     "publint": "^0.3.24",
     "typescript": "^7.0.2",
     "vite-plus": "^0.3.1",
