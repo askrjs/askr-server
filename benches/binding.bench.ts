@@ -1,21 +1,26 @@
+import assert from "node:assert/strict";
+import { createRouter } from "../src/router";
 import { bench } from "vitest";
 import { createServerApp } from "../src/application";
 import { bind } from "../src/binding";
 
 let sink: unknown;
 const response = new Response(null, { status: 204 });
-const app = createServerApp({
-  routes: [
-    {
-      path: "/items/{id}",
-      method: "POST",
-      handler: async (ctx) => {
-        sink = await ctx.bind();
-        return response;
-      },
-    },
-  ],
-});
+const app = createServerApp(
+  createRouter().post("/items/{id}", async (ctx) => {
+    sink = await ctx.bind();
+    return response;
+  }),
+);
+const proof = await app.fetch(
+  new Request("http://example.test/items/42?view=full", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: '{"name":"Ada"}',
+  }),
+);
+assert.equal(proof.status, 204);
+assert.deepEqual(sink, { name: "Ada", view: "full", id: "42" });
 
 const queryRequest = new Request(
   "http://example.test/items/42?tag=one&tag=two&view=full&locale=en",

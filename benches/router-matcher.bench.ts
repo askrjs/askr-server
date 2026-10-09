@@ -18,7 +18,7 @@ const methodMatcher = createMatcher([
   { path: "/items/{*path}", method: "POST", handler },
 ]);
 
-let sink: MatchResult;
+let sink: MatchResult | undefined;
 
 bench("match a static route", () => {
   sink = staticMatcher.match("/items/1023", "GET");

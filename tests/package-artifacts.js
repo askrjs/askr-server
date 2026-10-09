@@ -21,7 +21,12 @@ if (JSON.stringify(dependencies) !== JSON.stringify(allowedDependencies)) {
 }
 
 const packedFiles = new Set(result.files.map(({ path }) => normalize(path)));
-for (const expected of ["dist/testing.js", "dist/testing.d.ts"]) {
+for (const expected of [
+  "dist/testing.js",
+  "dist/testing.d.ts",
+  "CHANGELOG.md",
+  "docs/0.5.0-hardening.md",
+]) {
   if (!packedFiles.has(normalize(expected))) {
     throw new Error(`Packed artifact is missing ${expected}.`);
   }
@@ -37,6 +42,8 @@ for (const file of packedFiles) {
     file !== normalize("LICENSE") &&
     file !== normalize("README.md") &&
     file !== normalize("package.json") &&
+    file !== normalize("CHANGELOG.md") &&
+    file !== normalize("docs/0.5.0-hardening.md") &&
     !file.startsWith(`${normalize("dist")}\\`) &&
     !file.startsWith(`${normalize("dist")}/`)
   ) {

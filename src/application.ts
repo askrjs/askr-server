@@ -85,6 +85,22 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
       options,
       dispatchOptions?.websocket,
     );
+    let errorHandlerFailure: { reason: unknown } | undefined;
+    const respondToError = async (
+      error: unknown,
+      failedContext: ServerContext,
+    ): Promise<Response> => {
+      if (errorHandlerFailure) throw errorHandlerFailure.reason;
+      try {
+        const response = await errorResponse(error, failedContext);
+        if (!(response instanceof Response)) throw new TypeError("onError must return a Response");
+        return response;
+      } catch (reason) {
+        // Propagate this request's failed error handler without invoking it again at outer boundaries.
+        errorHandlerFailure = { reason };
+        throw reason;
+      }
+    };
     const traceId = options.telemetry?.traceId();
     if (requestId) context.state.requestId = requestId;
     if (traceId) context.state.traceId = traceId;
@@ -103,10 +119,10 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
       }
       return await dispatchRequest(middleware, context, found, {
         ...options,
-        errorResponse,
+        errorResponse: respondToError,
       });
     } catch (error) {
-      return errorResponse(error, context);
+      return respondToError(error, context);
     }
   };
 
