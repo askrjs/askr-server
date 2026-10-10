@@ -1,0 +1,677 @@
+{
+  "baselineNames": 214,
+  "candidateNames": 87,
+  "exportKeys": [
+    ".",
+    "./askr",
+    "./auth",
+    "./http",
+    "./mcp",
+    "./middleware",
+    "./openapi",
+    "./package.json",
+    "./router",
+    "./testing"
+  ],
+  "entrypoints": {
+    "@askrjs/server": {
+      "values": ["createServerApp"],
+      "types": [
+        "Handler",
+        "Middleware",
+        "Next",
+        "ServerApp",
+        "ServerAppOptions",
+        "ServerContext",
+        "ServerDispatchOptions",
+        "ServerTelemetry",
+        "WebSocketAdapter",
+        "WebSocketHandler",
+        "WebSocketLike"
+      ]
+    },
+    "@askrjs/server/router": {
+      "values": ["createRouter"],
+      "types": ["ApiRouteOptions", "Router"]
+    },
+    "@askrjs/server/http": {
+      "values": [
+        "clearCookie",
+        "createEventStream",
+        "json",
+        "problem",
+        "redirect",
+        "setCookie",
+        "text"
+      ],
+      "types": [
+        "CookieOptions",
+        "EventStream",
+        "EventStreamOptions",
+        "Problem",
+        "ProblemOptions",
+        "ServerSentEvent"
+      ]
+    },
+    "@askrjs/server/middleware": {
+      "values": [
+        "accessLog",
+        "cors",
+        "createCsrfToken",
+        "createCspNonce",
+        "createMemoryRateLimitStore",
+        "csrf",
+        "enforceHttps",
+        "rateLimit",
+        "requestId",
+        "securityHeaders",
+        "trace"
+      ],
+      "types": [
+        "CorsOptions",
+        "CsrfOptions",
+        "CspNonceProvider",
+        "MemoryRateLimitStoreOptions",
+        "RateLimitOptions",
+        "RateLimitStore"
+      ]
+    },
+    "@askrjs/server/askr": {
+      "values": ["createAskrApp", "createAskrPageHandler", "defineServerActions", "handleAction"],
+      "types": [
+        "ActionHandler",
+        "ActionOutcome",
+        "ActionRegistry",
+        "AskrApp",
+        "AskrAppApi",
+        "AskrAppOptions",
+        "AskrPageHandlerOptions",
+        "ServerActionsOptions"
+      ]
+    },
+    "@askrjs/server/auth": {
+      "values": ["AuthRouteError", "registerAuthRoutes", "safeRedirect"],
+      "types": ["AuthRouteOptions"]
+    },
+    "@askrjs/server/openapi": {
+      "values": ["createApi", "security"],
+      "types": [
+        "ApiDefinition",
+        "ApiGroup",
+        "ApiHandler",
+        "ApiInput",
+        "ApiOperation",
+        "ApiOptions",
+        "OpenApiDocument",
+        "RouteBuilder",
+        "SecurityRequirement",
+        "SecurityScheme"
+      ]
+    },
+    "@askrjs/server/mcp": {
+      "values": ["createMcpServer", "registerMcpRoutes"],
+      "types": [
+        "McpContent",
+        "McpContext",
+        "McpPromptOptions",
+        "McpRequestEnvironment",
+        "McpResourceOptions",
+        "McpServer",
+        "McpServerOptions",
+        "McpSessionStore",
+        "McpToolOptions",
+        "McpToolResult"
+      ]
+    },
+    "@askrjs/server/testing": {
+      "values": ["AdapterConformanceError", "runAdapterConformance"],
+      "types": []
+    }
+  },
+  "negativeImports": [
+    {
+      "entrypoint": ".",
+      "name": "accepted"
+    },
+    {
+      "entrypoint": ".",
+      "name": "accepts"
+    },
+    {
+      "entrypoint": ".",
+      "name": "AccessDeniedHandler"
+    },
+    {
+      "entrypoint": ".",
+      "name": "ApiRoute"
+    },
+    {
+      "entrypoint": ".",
+      "name": "ApiRouteOptions"
+    },
+    {
+      "entrypoint": ".",
+      "name": "AuthCredentials"
+    },
+    {
+      "entrypoint": ".",
+      "name": "AuthRouteError"
+    },
+    {
+      "entrypoint": ".",
+      "name": "AuthRouteOptions"
+    },
+    {
+      "entrypoint": ".",
+      "name": "bad"
+    },
+    {
+      "entrypoint": ".",
+      "name": "badRequest"
+    },
+    {
+      "entrypoint": ".",
+      "name": "bind"
+    },
+    {
+      "entrypoint": ".",
+      "name": "BindContext"
+    },
+    {
+      "entrypoint": ".",
+      "name": "BindingError"
+    },
+    {
+      "entrypoint": ".",
+      "name": "challenge"
+    },
+    {
+      "entrypoint": ".",
+      "name": "ChallengeOptions"
+    },
+    {
+      "entrypoint": ".",
+      "name": "clearCookie"
+    },
+    {
+      "entrypoint": ".",
+      "name": "conflict"
+    },
+    {
+      "entrypoint": ".",
+      "name": "contentType"
+    },
+    {
+      "entrypoint": ".",
+      "name": "CookieOptions"
+    },
+    {
+      "entrypoint": ".",
+      "name": "CookieSameSite"
+    },
+    {
+      "entrypoint": ".",
+      "name": "createCspNonce"
+    },
+    {
+      "entrypoint": ".",
+      "name": "created"
+    },
+    {
+      "entrypoint": ".",
+      "name": "createEventStream"
+    },
+    {
+      "entrypoint": ".",
+      "name": "createRouter"
+    },
+    {
+      "entrypoint": ".",
+      "name": "CspNonceProvider"
+    },
+    {
+      "entrypoint": ".",
+      "name": "DEFAULT_MAX_REQUEST_BYTES"
+    },
+    {
+      "entrypoint": ".",
+      "name": "defineRoutes"
+    },
+    {
+      "entrypoint": ".",
+      "name": "error"
+    },
+    {
+      "entrypoint": ".",
+      "name": "EventStream"
+    },
+    {
+      "entrypoint": ".",
+      "name": "EventStreamOptions"
+    },
+    {
+      "entrypoint": ".",
+      "name": "explicitlyAccepts"
+    },
+    {
+      "entrypoint": ".",
+      "name": "forbidden"
+    },
+    {
+      "entrypoint": ".",
+      "name": "formatServerSentEvent"
+    },
+    {
+      "entrypoint": ".",
+      "name": "internalServerError"
+    },
+    {
+      "entrypoint": ".",
+      "name": "json"
+    },
+    {
+      "entrypoint": ".",
+      "name": "JsonValue"
+    },
+    {
+      "entrypoint": ".",
+      "name": "methodNotAllowed"
+    },
+    {
+      "entrypoint": ".",
+      "name": "noContent"
+    },
+    {
+      "entrypoint": ".",
+      "name": "notFound"
+    },
+    {
+      "entrypoint": ".",
+      "name": "notImplemented"
+    },
+    {
+      "entrypoint": ".",
+      "name": "ok"
+    },
+    {
+      "entrypoint": ".",
+      "name": "Params"
+    },
+    {
+      "entrypoint": ".",
+      "name": "PathParams"
+    },
+    {
+      "entrypoint": ".",
+      "name": "PayloadTooLargeError"
+    },
+    {
+      "entrypoint": ".",
+      "name": "ProbeHandler"
+    },
+    {
+      "entrypoint": ".",
+      "name": "ProbeOptions"
+    },
+    {
+      "entrypoint": ".",
+      "name": "ProbeResult"
+    },
+    {
+      "entrypoint": ".",
+      "name": "problem"
+    },
+    {
+      "entrypoint": ".",
+      "name": "Problem"
+    },
+    {
+      "entrypoint": ".",
+      "name": "ProblemOptions"
+    },
+    {
+      "entrypoint": ".",
+      "name": "readRequestBytes"
+    },
+    {
+      "entrypoint": ".",
+      "name": "readRequestFormData"
+    },
+    {
+      "entrypoint": ".",
+      "name": "readRequestText"
+    },
+    {
+      "entrypoint": ".",
+      "name": "redirect"
+    },
+    {
+      "entrypoint": ".",
+      "name": "registerAuthRoutes"
+    },
+    {
+      "entrypoint": ".",
+      "name": "RequestState"
+    },
+    {
+      "entrypoint": ".",
+      "name": "RouteBuilder"
+    },
+    {
+      "entrypoint": ".",
+      "name": "Router"
+    },
+    {
+      "entrypoint": ".",
+      "name": "safeRedirect"
+    },
+    {
+      "entrypoint": ".",
+      "name": "SafeRedirectOptions"
+    },
+    {
+      "entrypoint": ".",
+      "name": "serverError"
+    },
+    {
+      "entrypoint": ".",
+      "name": "ServerSentEvent"
+    },
+    {
+      "entrypoint": ".",
+      "name": "ServerTelemetryFields"
+    },
+    {
+      "entrypoint": ".",
+      "name": "ServerTelemetryOperation"
+    },
+    {
+      "entrypoint": ".",
+      "name": "serviceUnavailable"
+    },
+    {
+      "entrypoint": ".",
+      "name": "setCookie"
+    },
+    {
+      "entrypoint": ".",
+      "name": "text"
+    },
+    {
+      "entrypoint": ".",
+      "name": "TokenIssuer"
+    },
+    {
+      "entrypoint": ".",
+      "name": "tooManyRequests"
+    },
+    {
+      "entrypoint": ".",
+      "name": "unauthorized"
+    },
+    {
+      "entrypoint": ".",
+      "name": "unprocessableEntity"
+    },
+    {
+      "entrypoint": ".",
+      "name": "WebSocketCloseEvent"
+    },
+    {
+      "entrypoint": "./router",
+      "name": "ApiRoute"
+    },
+    {
+      "entrypoint": "./router",
+      "name": "defineRoutes"
+    },
+    {
+      "entrypoint": "./router",
+      "name": "Handler"
+    },
+    {
+      "entrypoint": "./router",
+      "name": "Middleware"
+    },
+    {
+      "entrypoint": "./router",
+      "name": "RouteBuilder"
+    },
+    {
+      "entrypoint": "./router",
+      "name": "WebSocketHandler"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "accepted"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "accepts"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "bad"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "badRequest"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "challenge"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "conflict"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "contentType"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "created"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "error"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "explicitlyAccepts"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "forbidden"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "formatServerSentEvent"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "internalServerError"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "methodNotAllowed"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "noContent"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "notFound"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "notImplemented"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "ok"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "serverError"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "serviceUnavailable"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "tooManyRequests"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "unauthorized"
+    },
+    {
+      "entrypoint": "./http",
+      "name": "unprocessableEntity"
+    },
+    {
+      "entrypoint": "./middleware",
+      "name": "ResponseLogger"
+    },
+    {
+      "entrypoint": "./middleware",
+      "name": "verifyCsrfToken"
+    },
+    {
+      "entrypoint": "./askr",
+      "name": "ActionCookieInstruction"
+    },
+    {
+      "entrypoint": "./askr",
+      "name": "ActionEntry"
+    },
+    {
+      "entrypoint": "./askr",
+      "name": "ActionExecution"
+    },
+    {
+      "entrypoint": "./askr",
+      "name": "ActionExecutionOptions"
+    },
+    {
+      "entrypoint": "./askr",
+      "name": "ActionHandlerContext"
+    },
+    {
+      "entrypoint": "./askr",
+      "name": "ActionRegistration"
+    },
+    {
+      "entrypoint": "./askr",
+      "name": "ActionRegistryOptions"
+    },
+    {
+      "entrypoint": "./askr",
+      "name": "AskrAppApiOptions"
+    },
+    {
+      "entrypoint": "./askr",
+      "name": "AskrAppAuthOptions"
+    },
+    {
+      "entrypoint": "./askr",
+      "name": "translateAskrPageResult"
+    },
+    {
+      "entrypoint": "./auth",
+      "name": "AuthCredentials"
+    },
+    {
+      "entrypoint": "./auth",
+      "name": "SafeRedirectOptions"
+    },
+    {
+      "entrypoint": "./auth",
+      "name": "TokenIssuer"
+    },
+    {
+      "entrypoint": "./openapi",
+      "name": "ApiInfo"
+    },
+    {
+      "entrypoint": "./openapi",
+      "name": "BodyOptions"
+    },
+    {
+      "entrypoint": "./openapi",
+      "name": "InferSchema"
+    },
+    {
+      "entrypoint": "./openapi",
+      "name": "ParameterOptions"
+    },
+    {
+      "entrypoint": "./openapi",
+      "name": "ResponseOptions"
+    },
+    {
+      "entrypoint": "./openapi",
+      "name": "schema"
+    },
+    {
+      "entrypoint": "./openapi",
+      "name": "Schema"
+    },
+    {
+      "entrypoint": "./mcp",
+      "name": "McpLogLevel"
+    },
+    {
+      "entrypoint": "./mcp",
+      "name": "McpPrimitiveOptions"
+    },
+    {
+      "entrypoint": "./mcp",
+      "name": "McpProtocolRevision"
+    },
+    {
+      "entrypoint": "./mcp",
+      "name": "McpTransportKind"
+    },
+    {
+      "entrypoint": "./mcp",
+      "name": "protectedResourceMetadata"
+    },
+    {
+      "entrypoint": "./testing",
+      "name": "AdapterConformanceErrorCode"
+    },
+    {
+      "entrypoint": "./testing",
+      "name": "AdapterConformanceExercises"
+    },
+    {
+      "entrypoint": "./testing",
+      "name": "AdapterConformanceOptions"
+    },
+    {
+      "entrypoint": "./testing",
+      "name": "AdapterConformanceReport"
+    }
+  ],
+  "privateSubpaths": [
+    "binding",
+    "body-limit",
+    "context",
+    "csp-nonce",
+    "responses",
+    "http/responses",
+    "http/media-types",
+    "router/router",
+    "auth/routes",
+    "testing/public",
+    "openapi/types",
+    "mcp/types",
+    "askr/action-types",
+    "dist/index.js"
+  ]
+}

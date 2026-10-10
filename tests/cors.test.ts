@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { text } from "../src/index";
+import { text } from "../src/http/index";
 import { createServerApp } from "./test-app";
 import { cors } from "../src/middleware/index";
 

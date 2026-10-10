@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createApi, schema, security } from "../src/openapi/index";
+import { createApi, security } from "../src/openapi/index";
+import { schema } from "@askrjs/schema";
 
 function validRoute(api: ReturnType<typeof createApi>, path = "/items", id = "listItems") {
   return api

@@ -1,10 +1,10 @@
 import type { AuthContext, Principal } from "@askrjs/auth";
-import { authSchema, credentialsSchema, successfulAuthSchema } from "./auth-schemas";
-import type { CookieOptions, ServerContext } from "./contracts";
-import { accepts } from "./http/media-types";
-import type { ApiDefinition } from "./openapi/public";
-import { readOperationInput } from "./openapi/request-input";
-import type { Schema } from "./openapi/types";
+import { authSchema, credentialsSchema, successfulAuthSchema } from "../auth-schemas";
+import type { CookieOptions, ServerContext } from "../contracts";
+import { accepts } from "../http/media-types";
+import type { ApiDefinition } from "../openapi/public";
+import { readOperationInput } from "../openapi/request-input";
+import type { Schema } from "../openapi/types";
 
 /** Issues auth tokens for a principal, used by {@link registerAuthRoutes} to mint session tokens. */
 export interface TokenIssuer<P extends Principal> {

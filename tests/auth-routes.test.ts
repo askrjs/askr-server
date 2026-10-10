@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { registerAuthRoutes } from "../src/auth";
 import { createServerApp } from "./test-app";
-import { createApi, schema } from "../src/openapi";
+import { createApi } from "../src/openapi";
+import { schema } from "@askrjs/schema";
 
 function authApplication() {
   const issue = vi.fn(async () => "token");

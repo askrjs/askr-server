@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Breaking
+
+- Give every Server contract one canonical import path. Review all 214 baseline
+  name/path pairs and retain 87 deliberate contracts. Root exports now cover the
+  application and adapter contracts; routing, HTTP, middleware, auth, OpenAPI,
+  MCP, Askr integration, and adapter testing use their dedicated entry points.
+- Remove standalone status shortcuts, `defineRoutes`, public body readers,
+  media parsing utilities, schema re-exports, and redundant supporting types.
+  Use context status methods, `createRouter`, `ctx.bind`, direct Schema imports,
+  and types derived from their supported owners. Rename context `bad` to
+  `badRequest` and `serverError` to `internalServerError`.
+- See [the complete API decisions and migration guide](docs/0.5.0-api.md).
+
 ### Fixed
 
 - Enforce a stricter request-size limit on cached body reads. Abort stalled reads

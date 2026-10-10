@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createServerApp } from "./test-app";
-import { createApi, schema } from "../src/openapi/index";
+import { createApi } from "../src/openapi/index";
+import { schema } from "@askrjs/schema";
 
 function finish(route: ReturnType<ReturnType<typeof createApi>["post"]>): void {
   route

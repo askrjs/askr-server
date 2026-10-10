@@ -1,14 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  clearCookie,
-  createRouter,
-  defineRoutes,
-  json,
-  redirect,
-  setCookie,
-  text,
-  type Middleware,
-} from "../src/index";
+import { clearCookie, json, redirect, setCookie, text } from "../src/http/index";
+import { createRouter } from "../src/router/index";
+import { type Middleware } from "../src/index";
 import { createServerApp } from "./test-app";
 import { requireAnonymous, requireRole, requireUser, type AuthContext } from "@askrjs/auth";
 import { cors, requestId, securityHeaders, trace } from "../src/middleware/index";
@@ -22,6 +15,19 @@ const authenticated: AuthContext = {
 };
 
 describe("HTTP responses", () => {
+  it("exposes canonical status methods without removed context aliases", async () => {
+    const app = createServerApp(
+      createRouter().get("/", (context) => {
+        expect("bad" in context).toBe(false);
+        expect("serverError" in context).toBe(false);
+        expect(context.badRequest().status).toBe(400);
+        expect(context.internalServerError().status).toBe(500);
+        return context.ok();
+      }),
+    );
+    expect((await app.fetch(new Request("https://askr.test/"))).status).toBe(200);
+  });
+
   it("should encode Unicode redirect locations as valid header values", () => {
     const response = redirect("/tags/日本?q=東京#詳細");
 
@@ -417,11 +423,10 @@ describe("router", () => {
   });
 
   it("should support method helpers without implementation classes", async () => {
-    const routes = defineRoutes((route) => {
-      route.post("/items", () => text("created"));
-      route.ws("/socket", () => undefined);
-    });
-    expect(routes.map((route) => route.method)).toEqual(["POST", "GET"]);
+    const router = createRouter()
+      .post("/items", () => text("created"))
+      .ws("/socket", () => undefined);
+    expect(router.routes.map((route) => route.method)).toEqual(["POST", "GET"]);
   });
 
   it("should preserve explicit API route precedence over fallback", async () => {
@@ -732,9 +737,7 @@ describe("one auth context dispatch", () => {
     let upgraded = false;
     const app = createServerApp({
       websocket: { upgrade: async () => ((upgraded = true), new Response(null, { status: 101 })) },
-      routes: defineRoutes((route) =>
-        route.ws("/socket", () => undefined, { auth: requireUser() }),
-      ),
+      router: createRouter().ws("/socket", () => undefined, { auth: requireUser() }),
     });
     expect((await app.fetch(new Request("http://example.test/socket"))).status).toBe(401);
     expect(upgraded).toBe(false);
@@ -743,7 +746,7 @@ describe("one auth context dispatch", () => {
   it("should prefer a dispatch WebSocket adapter over the application adapter", async () => {
     const app = createServerApp({
       websocket: { upgrade: async () => new Response("application") },
-      routes: defineRoutes((route) => route.ws("/socket", () => undefined)),
+      router: createRouter().ws("/socket", () => undefined),
     });
     const response = await app.fetch(new Request("http://example.test/socket"), {
       websocket: { upgrade: async () => new Response("dispatch") },
