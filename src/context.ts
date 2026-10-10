@@ -9,7 +9,31 @@ import { bind } from "./binding";
 import * as responses from "./http/responses";
 import { createEventStream } from "./http/event-stream";
 
-const responseHelpers = Object.freeze({ ...responses });
+const responseHelpers = Object.freeze({
+  json: responses.json,
+  text: responses.text,
+  redirect: responses.redirect,
+  ok: responses.ok,
+  created: responses.created,
+  accepted: responses.accepted,
+  noContent: responses.noContent,
+  badRequest: responses.badRequest,
+  unauthorized: responses.unauthorized,
+  forbidden: responses.forbidden,
+  notFound: responses.notFound,
+  conflict: responses.conflict,
+  unprocessableEntity: responses.unprocessableEntity,
+  tooManyRequests: responses.tooManyRequests,
+  methodNotAllowed: responses.methodNotAllowed,
+  error: responses.error,
+  internalServerError: responses.internalServerError,
+  notImplemented: responses.notImplemented,
+  serviceUnavailable: responses.serviceUnavailable,
+  problem: responses.problem,
+  challenge: responses.challenge,
+  setCookie: responses.setCookie,
+  clearCookie: responses.clearCookie,
+});
 type ContextProperties = Pick<
   ServerContext,
   | "request"

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { createRouter, createServerApp } from "@askrjs/server";
+import { createServerApp } from "@askrjs/server";
+import { createRouter } from "@askrjs/server/router";
 
 let cancelled = 0;
 const stream = () =>
@@ -96,3 +97,16 @@ assert.equal(cancelled, 3);
 assert.equal(request.body.locked, false);
 for (const path of ["response-body", "dist/index.js"])
   await assert.rejects(import(`@askrjs/server/${path}`), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });
+
+const canonical = createServerApp(
+  createRouter().get("/", (context) => {
+    assert.equal("bad" in context, false);
+    assert.equal("serverError" in context, false);
+    assert.equal(context.badRequest().status, 400);
+    assert.equal(context.internalServerError().status, 500);
+    return context.ok({ canonical: true });
+  }),
+);
+assert.deepEqual(await (await canonical.fetch(new Request("https://askr.test/"))).json(), {
+  canonical: true,
+});

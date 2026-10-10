@@ -10,6 +10,9 @@ integration without depending on a particular runtime.
 Use `@askrjs/node` to run an application on Node.js, or provide another adapter for a different
 runtime.
 
+The 0.5 release candidate uses one canonical import path per contract. See
+[the complete API inventory and migration guide](docs/0.5.0-api.md).
+
 ## Install
 
 ```sh
@@ -60,7 +63,9 @@ callback's `finally`/cleanup path.
 ## Create an application
 
 ```ts
-import { createRouter, createServerApp, json } from "@askrjs/server";
+import { createServerApp } from "@askrjs/server";
+import { createRouter } from "@askrjs/server/router";
+import { json } from "@askrjs/server/http";
 
 const router = createRouter().get("/health", () => json({ status: "ok" }));
 const app = createServerApp(router);
@@ -78,6 +83,9 @@ to `createAskrApp()` and a callback-based CSP policy so the header, page
 renderer, deferred scripts, and runtime styles share one request nonce:
 
 ```ts
+import { createAskrApp } from "@askrjs/server/askr";
+import { createCspNonce, securityHeaders } from "@askrjs/server/middleware";
+
 const nonce = createCspNonce();
 
 const app = createAskrApp({
@@ -344,7 +352,8 @@ dependency injection, and OpenAPI metadata:
 
 ```ts
 import { requireUser } from "@askrjs/auth";
-import { createApi, schema, security } from "@askrjs/server/openapi";
+import { createApi, security } from "@askrjs/server/openapi";
+import { schema } from "@askrjs/schema";
 
 const api = createApi<AppDependencies>({
   info: { title: "Users API", version: "1.0.0" },

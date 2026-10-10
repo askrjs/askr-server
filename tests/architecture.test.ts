@@ -110,7 +110,8 @@ describe("server architecture", () => {
       .join("\n");
     expect(publicEntries).not.toMatch(/\b(?:defineContext|readContext)\b/);
     expect(publicEntries).not.toMatch(/export[^\n]*\buse[A-Z][A-Za-z]+\b/);
-    expect(publicEntries).not.toMatch(/export[^\n]*\b[A-Z][A-Za-z]+Provider\b/);
+    // A CSP nonce provider is a typed callback, not a runtime context provider.
+    expect(publicEntries).not.toMatch(/export\s+(?!type\b)[^\n]*\b[A-Z][A-Za-z]+Provider\b/);
   });
 
   it("should keep context construction checked and CSRF rejection centralized", () => {

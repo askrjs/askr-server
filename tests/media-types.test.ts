@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { accepts, contentType, explicitlyAccepts } from "../src/http";
+import { accepts, contentType, explicitlyAccepts } from "../src/http/media-types";
 
-describe("public media-type helpers", () => {
+describe("private media-type helpers", () => {
   it("should normalize content types without retaining parameters", () => {
     expect(contentType(" Text/HTML ; charset=utf-8")).toBe("text/html");
     expect(contentType("application/problem+json")).toBe("application/problem+json");

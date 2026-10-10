@@ -184,7 +184,6 @@ export interface ServerContext<RouteParams extends Params = Params> {
   accepted(value?: JsonValue, init?: ResponseInit): Response;
   noContent(init?: ResponseInit): Response;
   badRequest(message?: string, init?: ResponseInit): Response;
-  bad(message?: string, init?: ResponseInit): Response;
   unauthorized(message?: string, init?: ResponseInit): Response;
   forbidden(message?: string, init?: ResponseInit): Response;
   notFound(message?: string, init?: ResponseInit): Response;
@@ -194,7 +193,6 @@ export interface ServerContext<RouteParams extends Params = Params> {
   methodNotAllowed(allow?: string | readonly string[], init?: ResponseInit): Response;
   error(status?: number, message?: string, init?: ResponseInit): Response;
   internalServerError(message?: string, init?: ResponseInit): Response;
-  serverError(message?: string, init?: ResponseInit): Response;
   notImplemented(message?: string, init?: ResponseInit): Response;
   serviceUnavailable(message?: string, init?: ResponseInit): Response;
   problem(status: number, detail?: string, options?: ProblemOptions): Response;
