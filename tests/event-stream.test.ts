@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { createEventStream, formatServerSentEvent } from "../src/http/event-stream";
 
 describe("server-sent events", () => {

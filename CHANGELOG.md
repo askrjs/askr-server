@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.5.0 - 2026-10-10
+
 ### Breaking
 
 - Give every Server contract one canonical import path. Review all 214 baseline
@@ -43,6 +45,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   normal packed-install runtime and strict declaration checks. See
   [0.5 hardening evidence](docs/0.5.0-hardening.md) for the exercised scenarios,
   observed costs, and qualification still pending.
+
+### Development
+
+- First-party development workflows use Vite+; specialized compiler, runtime,
+  browser, and package checks remain part of validation.
 
 ## 0.4.1 - 2026-09-30
 

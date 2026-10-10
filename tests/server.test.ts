@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { clearCookie, json, redirect, setCookie, text } from "../src/http/index";
 import { createRouter } from "../src/router/index";
 import { type Middleware } from "../src/index";

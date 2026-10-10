@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { accepts, contentType, explicitlyAccepts } from "../src/http/media-types";
 
 describe("private media-type helpers", () => {

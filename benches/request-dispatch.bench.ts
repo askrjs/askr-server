@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createRouter } from "../src/router";
-import { bench } from "vitest";
+import { bench } from "vite-plus/test";
 import { createServerApp } from "../src/index";
 
 const app = createServerApp(createRouter().get("/health", (ctx) => ctx.ok({ ok: true })));

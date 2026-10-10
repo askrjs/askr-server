@@ -1,5 +1,5 @@
 import { schema } from "@askrjs/schema";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { createMcpServer } from "../src/mcp/server";
 
 const anonymous = { authenticated: false, principal: null, session: null, tenant: null } as const;

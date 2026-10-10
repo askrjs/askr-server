@@ -1,4 +1,4 @@
-import { bench } from "vitest";
+import { bench } from "vite-plus/test";
 import type { ApiRoute } from "../src/contracts";
 import { createMatcher, type MatchResult } from "../src/router/matcher";
 

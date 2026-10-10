@@ -1,5 +1,5 @@
 import { requireAnonymous, requireUser } from "@askrjs/auth";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { createServerApp } from "./test-app";
 import { createApi, security } from "../src/openapi/index";
 import { schema } from "@askrjs/schema";

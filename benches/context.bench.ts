@@ -1,4 +1,4 @@
-import { bench } from "vitest";
+import { bench } from "vite-plus/test";
 import { anonymousAuthContext, createServerContext } from "../src/context";
 
 const request = new Request("http://example.test/items/42?view=full");
