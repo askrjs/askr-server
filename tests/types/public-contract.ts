@@ -16,6 +16,8 @@ import type { CookieOptions } from "../../dist/http.js";
 import type { AuthRouteOptions, safeRedirect } from "../../dist/auth.js";
 import type { ActionHandler, ActionOutcome } from "../../dist/askr.js";
 import type { McpContext } from "../../dist/mcp.js";
+import type { AuthResolver } from "@askrjs/auth";
+import type { ProviderSessionOptions } from "@askrjs/auth/server";
 
 type Exercises = Parameters<typeof runAdapterConformance>[0];
 type Report = Awaited<ReturnType<typeof runAdapterConformance>>;
@@ -256,6 +258,35 @@ const composed = createAskrApp({
 });
 composed.fetch(new Request("https://example.test")) satisfies Promise<Response>;
 composed.close() satisfies Promise<void>;
+
+declare const providerSession: ProviderSessionOptions;
+declare const manualResolver: AuthResolver;
+const authApplication = { name: "Auth", version: "1", dependencies: {}, pages };
+createAskrApp({ ...authApplication, auth: providerSession });
+createAskrApp({ ...authApplication, auth: { resolver: manualResolver } });
+// @ts-expect-error Provider sessions and manual resolvers are exclusive.
+createAskrApp({ ...authApplication, auth: { ...providerSession, resolver: manualResolver } });
+// @ts-expect-error Provider sessions own their auth routes.
+createAskrApp({ ...authApplication, auth: { ...providerSession, routes: {} } });
+// @ts-expect-error Provider sessions own the shared SSR identity projection.
+createAskrApp({ ...authApplication, auth: { ...providerSession, pages: {} } });
+createAskrApp({
+  ...authApplication,
+  // @ts-expect-error A manual resolver cannot be mixed with provider options.
+  auth: { resolver: manualResolver, origin: "https://app.test" },
+});
+declare const providerRequestContext: ServerContext;
+providerRequestContext.auth.token("company", {
+  resource: "calendar",
+  scopes: ["read"],
+  signal: new AbortController().signal,
+}) satisfies Promise<string>;
+// @ts-expect-error Token scope selection must be explicit.
+providerRequestContext.auth.token("company", { resource: "calendar" });
+// @ts-expect-error Resource selectors are configured strings.
+providerRequestContext.auth.token("company", { resource: 42, scopes: [] });
+// @ts-expect-error Provider selectors are configured IDs.
+providerRequestContext.auth.token({}, { scopes: [] });
 
 // Every removed or moved 0.4 import must fail at its former entry point.
 // @ts-expect-error removed or moved to its canonical owner in 0.5

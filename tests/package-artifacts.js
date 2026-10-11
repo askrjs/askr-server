@@ -27,6 +27,7 @@ for (const expected of [
   "CHANGELOG.md",
   "docs/0.5.0-hardening.md",
   "docs/0.5.0-api.md",
+  "docs/provider-sessions.md",
 ]) {
   if (!packedFiles.has(normalize(expected))) {
     throw new Error(`Packed artifact is missing ${expected}.`);
@@ -46,6 +47,7 @@ for (const file of packedFiles) {
     file !== normalize("CHANGELOG.md") &&
     file !== normalize("docs/0.5.0-hardening.md") &&
     file !== normalize("docs/0.5.0-api.md") &&
+    file !== normalize("docs/provider-sessions.md") &&
     !file.startsWith(`${normalize("dist")}\\`) &&
     !file.startsWith(`${normalize("dist")}/`)
   ) {

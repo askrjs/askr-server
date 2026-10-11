@@ -1,4 +1,4 @@
-import type { AuthContext } from "@askrjs/auth";
+import type { AuthContext, AuthResolver } from "@askrjs/auth";
 import type {
   ServerContext,
   WebSocketHandler,
@@ -54,10 +54,36 @@ export function anonymousAuthContext(): AuthContext {
   return { authenticated: false, principal: null, session: null, tenant: null };
 }
 
+/** Add the request capability without mutating or serializing the resolver's context. */
+export function createServerAuthContext(
+  auth: AuthContext,
+  request: Request,
+  resolver?: AuthResolver,
+): ServerContext["auth"] {
+  type TokenOptions = Parameters<ServerContext["auth"]["token"]>[1];
+  const provider = resolver as
+    | (AuthResolver & {
+        token?: (request: Request, provider: string, options: TokenOptions) => Promise<string>;
+      })
+    | undefined;
+  const token = (name: string, options: TokenOptions): Promise<string> => {
+    if (typeof provider?.token === "function") return provider.token(request, name, options);
+    const error = new Error("Provider token access requires provider session authentication.");
+    Object.defineProperty(error, "code", { value: "configuration" });
+    return Promise.reject(error);
+  };
+  return Object.defineProperty({ ...auth }, "token", {
+    value: token,
+    enumerable: false,
+    writable: false,
+    configurable: false,
+  }) as ServerContext["auth"];
+}
+
 export function createServerContext(
   request: Request,
   auth: AuthContext,
-  options: Pick<ServerAppOptions, "telemetry" | "websocket">,
+  options: Pick<ServerAppOptions, "telemetry" | "websocket" | "auth">,
   dispatchWebsocket?: WebSocketAdapter,
 ): ServerContext {
   const url = new URL(request.url);
@@ -74,7 +100,7 @@ export function createServerContext(
     headers: request.headers,
     query: url.searchParams,
     state: {},
-    auth,
+    auth: createServerAuthContext(auth, request, options.auth),
     signal: request.signal,
     sse: (streamOptions: Parameters<ServerContext["sse"]>[0]) =>
       createEventStream({ ...streamOptions, signal: request.signal }),

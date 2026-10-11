@@ -1,4 +1,5 @@
 import type { AuthResolver, Principal } from "@askrjs/auth";
+import { createProviderSession, type ProviderSessionOptions } from "@askrjs/auth/server";
 import type { RouteAuthOptions, RouteRegistry } from "@askrjs/askr/router";
 import type { ServerQueryRegistry } from "@askrjs/askr/data";
 import { createServerApp } from "../application";
@@ -21,6 +22,14 @@ import {
 import { createAskrPageHandler } from "./page-handler";
 import type { CspNonceProvider } from "../csp-nonce";
 import { parseRoutePath } from "../router/path";
+import { providerSnapshot } from "../auth/provider-snapshot";
+import { providerErrorResponse } from "../auth/provider-errors";
+import {
+  oversizedProviderCallback,
+  providerCsrfResponse,
+  registerProviderRoutes,
+} from "../auth/provider-routes";
+import { problem } from "../http/responses";
 
 /** A configured Askr application, as returned by {@link createAskrApp}. */
 export interface AskrApp {
@@ -42,12 +51,28 @@ export interface AskrAppApiOptions<Dependencies> {
   readonly validateResponses?: boolean;
 }
 
-/** Authentication configuration for an {@link AskrApp}: request resolver, optional auth routes, and page auth policy. */
-export interface AskrAppAuthOptions<P extends Principal> {
+interface ManualAuthOptions<P extends Principal> {
   readonly resolver: AuthResolver;
   readonly routes?: AuthRouteOptions<P>;
   readonly pages?: RouteAuthOptions;
+  readonly providers?: never;
+  readonly session?: never;
+  readonly origin?: never;
+  readonly onSignIn?: never;
+  readonly postLogoutRedirects?: never;
+  readonly transactionTtlSeconds?: never;
+  readonly fetch?: never;
+  readonly clock?: never;
 }
+
+/** Choose one provider session or an application-owned manual auth resolver. */
+export type AskrAppAuthOptions<P extends Principal> =
+  | ManualAuthOptions<P>
+  | (ProviderSessionOptions & {
+      readonly resolver?: never;
+      readonly routes?: never;
+      readonly pages?: never;
+    });
 
 /** Options for {@link createAskrApp}. */
 export interface AskrAppOptions<Dependencies, P extends Principal = Principal> {
@@ -96,7 +121,32 @@ export function createAskrApp<Dependencies, P extends Principal = Principal>(
   options: AskrAppOptions<Dependencies, P>,
 ): AskrApp {
   const prefix = normalizePrefix(options.api?.prefix);
-  if (options.auth?.routes && (prefix === "/auth" || prefix.startsWith("/auth/"))) {
+  const auth = options.auth;
+  if (auth !== undefined && (!auth || typeof auth !== "object")) {
+    throw new Error("Auth configuration must be a provider session or manual resolver object.");
+  }
+  const providerMode = auth !== undefined && "providers" in auth;
+  const providerFields = [
+    "providers",
+    "session",
+    "origin",
+    "onSignIn",
+    "postLogoutRedirects",
+    "transactionTtlSeconds",
+    "fetch",
+    "clock",
+  ];
+  if (
+    auth &&
+    (providerMode
+      ? ["resolver", "routes", "pages"].some((name) => name in auth)
+      : providerFields.some((name) => name in auth) || typeof auth.resolver?.resolve !== "function")
+  ) {
+    throw new Error("Choose provider session configuration or manual auth; do not combine them.");
+  }
+  const manual = !providerMode ? (auth as ManualAuthOptions<P> | undefined) : undefined;
+  const providerOptions = providerMode ? (auth as ProviderSessionOptions) : undefined;
+  if ((providerMode || manual?.routes) && (prefix === "/auth" || prefix.startsWith("/auth/"))) {
     throw new Error("The API prefix collides with the reserved /auth route prefix.");
   }
   const api = createApi<Dependencies>({
@@ -108,7 +158,11 @@ export function createAskrApp<Dependencies, P extends Principal = Principal>(
     schema: api.schema,
   }) as AskrAppApi<Dependencies>;
   options.api?.define?.(applicationApi);
-  if (options.auth?.routes) registerAuthRoutes(api, options.auth.routes);
+  const provider = providerOptions ? createProviderSession(providerOptions) : undefined;
+  const providers = providerOptions ? [...providerOptions.providers] : [];
+  if (provider && providerOptions)
+    registerProviderRoutes(api, provider, { ...providerOptions, providers });
+  if (manual?.routes) registerAuthRoutes(api, manual.routes);
   const actions = options.actions
     ? defineServerActions(
         { dependencies: options.dependencies, csrf: options.actions.csrf },
@@ -117,26 +171,66 @@ export function createAskrApp<Dependencies, P extends Principal = Principal>(
     : undefined;
   const router = (api.createRouter as (dependencies: Dependencies) => Router)(options.dependencies);
   router.get(`${prefix}/*`, (context) => context.notFound("API route not found"));
+  const pages = createAskrPageHandler({
+    registry: options.pages,
+    auth: provider
+      ? { loginPath: "/login", ...options.pages.manifest.auth, dehydrate: providerSnapshot }
+      : manual?.pages,
+    queryRegistry: options.queryRegistry,
+    actions,
+    cspNonce: options.cspNonce,
+  });
   const server = createServerApp({
     router,
-    auth: options.auth?.resolver,
+    auth:
+      provider ??
+      (manual
+        ? { resolve: (request, context) => manual.resolver.resolve(request, context) }
+        : undefined),
     middleware: options.middleware,
     probes: options.probes,
     telemetry: options.telemetry,
-    onError: options.onError,
+    onError: provider
+      ? (error, context) =>
+          providerErrorResponse(error, providers) ??
+          options.onError?.(error, context) ??
+          problem(500)
+      : options.onError,
     onAccessDenied: options.onAccessDenied,
-    fallback: createAskrPageHandler({
-      registry: options.pages,
-      auth: options.auth?.pages,
-      queryRegistry: options.queryRegistry,
-      actions,
-      cspNonce: options.cspNonce,
-    }),
+    fallback: (context) =>
+      provider && (context.url.pathname === "/auth" || context.url.pathname.startsWith("/auth/"))
+        ? context.notFound()
+        : pages(context),
   });
   let closing: Promise<void> | undefined;
   return Object.freeze({
-    fetch: (request: Request) => server.fetch(request),
+    fetch: async (request: Request) => {
+      if (!provider || !providerOptions) return server.fetch(request);
+      let response: Response;
+      try {
+        const callback = oversizedProviderCallback(request, providers);
+        response =
+          providerCsrfResponse(request, providerOptions.origin, providers) ??
+          (callback === undefined
+            ? await server.fetch(request)
+            : await provider.callback(request, { provider: callback }));
+      } catch (error) {
+        response = providerErrorResponse(error, providers) ?? problem(500);
+      }
+      try {
+        return await provider.finalize(request, response);
+      } catch (error) {
+        return providerErrorResponse(error, providers) ?? problem(500);
+      }
+    },
     toOpenApiDocument: () => api.toOpenApiDocument(),
-    close: () => (closing ??= Promise.resolve().then(() => options.close?.(options.dependencies))),
+    close: () =>
+      (closing ??= Promise.resolve().then(async () => {
+        try {
+          await options.close?.(options.dependencies);
+        } finally {
+          await provider?.close();
+        }
+      })),
   });
 }

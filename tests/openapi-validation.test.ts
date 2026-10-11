@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { createApi, security } from "../src/openapi/index";
 import { schema } from "@askrjs/schema";
 

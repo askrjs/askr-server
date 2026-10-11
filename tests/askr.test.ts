@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { requireUser, type AuthContext } from "@askrjs/auth";
 import { createRouteRegistry, fallback, route } from "@askrjs/askr/router";
 import { createAskrPageHandler } from "../src/askr/index";
@@ -61,7 +61,7 @@ describe("Askr page fallback", () => {
     );
   });
 
-  it("should expose the identical AuthContext to API SSR preload and page rendering", async () => {
+  it("should share one request auth context through SSR policy preload and rendering", async () => {
     let apiAuth: AuthContext | undefined;
     let requirementAuth: AuthContext | undefined;
     let preloadAuth: AuthContext | undefined;
@@ -77,6 +77,7 @@ describe("Askr page fallback", () => {
         },
         loader: (context) => {
           loaderAuth = context.auth;
+          return null;
         },
       });
     });
@@ -94,11 +95,15 @@ describe("Askr page fallback", () => {
       fallback: createAskrPageHandler({ registry }),
     });
     await app.fetch(new Request("http://example.test/api"));
-    await app.fetch(new Request("http://example.test/page"));
-    expect(apiAuth).toBe(user);
-    expect(requirementAuth).toBe(user);
-    expect(preloadAuth).toBe(user);
-    expect(loaderAuth).toBe(user);
+    const page = await app.fetch(new Request("http://example.test/page"));
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain("page");
+    expect(apiAuth).toEqual(user);
+    expect(requirementAuth).toEqual(user);
+    expect(apiAuth).not.toBe(requirementAuth);
+    expect(preloadAuth).toBe(requirementAuth);
+    expect(loaderAuth).toBe(requirementAuth);
+    expect(Object.hasOwn(user, "token")).toBe(false);
   });
 
   it("should avoid a second auth resolution during SSR", async () => {
