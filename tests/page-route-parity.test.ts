@@ -1,7 +1,7 @@
 import { createRouteRegistry, fallback, matchRoute, page, route } from "@askrjs/askr/router";
 import type { RouteRegistry } from "@askrjs/askr/router";
 import { schema } from "@askrjs/schema";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { createServerApp } from "./test-app";
 import { defineServerActions, handleAction } from "../src/askr/actions";
 import { createAskrPageHandler } from "../src/askr/page-handler";

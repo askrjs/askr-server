@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { registerAuthRoutes } from "../src/auth";
 import { createServerApp } from "./test-app";
 import { createApi } from "../src/openapi";

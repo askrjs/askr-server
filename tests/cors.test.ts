@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { text } from "../src/http/index";
 import { createServerApp } from "./test-app";
 import { cors } from "../src/middleware/index";

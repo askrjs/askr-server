@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { createServerApp } from "./test-app";
 import { registerMcpRoutes } from "../src/mcp/http";
 import { createMcpServer } from "../src/mcp/server";

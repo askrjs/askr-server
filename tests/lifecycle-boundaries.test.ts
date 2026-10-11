@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { createServerApp } from "./test-app";
 import { PayloadTooLargeError, readRequestBytes } from "../src/body-limit";
 import { bind, BindingError } from "../src/binding";

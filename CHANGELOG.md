@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.5.0 - 2026-10-10
+
 ### Breaking
 
 - Give every Server contract one canonical import path. Review all 214 baseline
@@ -39,10 +41,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add exclusive provider-session configuration to `createAskrApp`, with reserved
+  login/callback/session/logout routes, same-origin mutation protection, safe
+  interaction problems and request-bound server token access. SSR and session
+  JSON share a minimal identity projection. See
+  [provider-session wiring](docs/provider-sessions.md).
 - Coverage floors for request dispatch/body ownership and the broader unit suite;
   normal packed-install runtime and strict declaration checks. See
   [0.5 hardening evidence](docs/0.5.0-hardening.md) for the exercised scenarios,
   observed costs, and qualification still pending.
+
+### Development
+
+- First-party development workflows use Vite+; specialized compiler, runtime,
+  browser, and package checks remain part of validation.
 
 ## 0.4.1 - 2026-09-30
 

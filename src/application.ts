@@ -1,6 +1,6 @@
 import type { Router, ServerApp, ServerAppOptions, ServerContext } from "./contracts";
 import { BindingError } from "./binding";
-import { anonymousAuthContext, createServerContext } from "./context";
+import { anonymousAuthContext, createServerAuthContext, createServerContext } from "./context";
 import { dispatchRequest } from "./dispatch";
 import { problem } from "./http/responses";
 import {
@@ -115,7 +115,11 @@ export function createServerApp(input: Router | ServerAppOptions = {}): ServerAp
       if (maximum !== applicationMaximum) configureRequestLimit(request, maximum);
       rejectOversizedContentLength(request, maximum);
       if (options.auth) {
-        context.auth = await options.auth.resolve(request, { signal: request.signal });
+        context.auth = createServerAuthContext(
+          await options.auth.resolve(request, { signal: request.signal }),
+          request,
+          options.auth,
+        );
       }
       return await dispatchRequest(middleware, context, found, {
         ...options,

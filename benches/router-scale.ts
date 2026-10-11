@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createRouter } from "../src/router";
-import { bench, beforeAll } from "vitest";
+import { bench, beforeAll } from "vite-plus/test";
 import { createServerApp, type Handler } from "../src/index";
 
 export function defineRouterScaleBench(tier: string, routeCount: number): void {

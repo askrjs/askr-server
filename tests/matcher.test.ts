@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { ApiRoute } from "../src/contracts";
 import { createMatcher } from "../src/router/matcher";
 
