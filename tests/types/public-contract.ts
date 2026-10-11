@@ -220,6 +220,19 @@ const actions = defineServerActions(
   { dependencies: { store: { write: (name: string) => name } }, csrf: false },
   handleAction(SaveAction, (context, input, dependencies) => {
     context.params.id satisfies string;
+    context.auth.token("company", {
+      resource: "calendar",
+      scopes: ["read"],
+      signal: context.signal,
+    }) satisfies Promise<string>;
+    // @ts-expect-error Action token scope selection must be explicit.
+    context.auth.token("company", { resource: "calendar" });
+    // @ts-expect-error Action token resources are configured strings.
+    context.auth.token("company", { resource: 42, scopes: [] });
+    // @ts-expect-error Action token providers are configured IDs.
+    context.auth.token({}, { scopes: [] });
+    // @ts-expect-error Action cancellation uses an AbortSignal.
+    context.auth.token("company", { scopes: [], signal: "cancel" });
     input.name satisfies string;
     return { result: dependencies.store.write(input.name) };
   }),
