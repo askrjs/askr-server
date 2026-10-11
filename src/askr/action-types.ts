@@ -1,4 +1,3 @@
-import type { AuthContext } from "@askrjs/auth";
 import type { ActionDescriptor } from "@askrjs/askr/actions";
 import type { RoutePolicy } from "@askrjs/askr/router";
 import type { Issue } from "@askrjs/schema";
@@ -34,7 +33,7 @@ export interface ActionHandlerContext {
   readonly request: Request;
   readonly url: URL;
   readonly params: Params;
-  readonly auth: AuthContext;
+  readonly auth: ServerContext["auth"];
   readonly policies: readonly RoutePolicy[];
   readonly signal: AbortSignal;
 }
