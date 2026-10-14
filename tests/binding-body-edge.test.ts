@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { bind, BindingError } from "../src/binding";
 import { createServerApp } from "./test-app";
 import { text } from "../src/http/responses";

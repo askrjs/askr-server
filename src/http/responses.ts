@@ -110,8 +110,6 @@ export const noContent = (init?: ResponseInit) => withStatus(204, undefined, ini
 /** Builds a `400 Bad Request` Problem Details response. */
 export const badRequest = (detail = "Bad Request", init?: ResponseInit) =>
   message(400, detail, init);
-/** Alias for {@link badRequest}. */
-export const bad = badRequest;
 /** Builds a `401 Unauthorized` Problem Details response. */
 export const unauthorized = (detail = "Unauthorized", init?: ResponseInit) =>
   message(401, detail, init);
@@ -139,8 +137,6 @@ export const error = (status = 500, detail = "Internal Server Error", init?: Res
 /** Builds a `500 Internal Server Error` Problem Details response. */
 export const internalServerError = (detail = "Internal Server Error", init?: ResponseInit) =>
   error(500, detail, init);
-/** Alias for {@link internalServerError}. */
-export const serverError = internalServerError;
 
 /** Builds a `405 Method Not Allowed` Problem Details response, setting the `Allow` header if given. */
 export function methodNotAllowed(

@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { requireUser, type AuthContext } from "@askrjs/auth";
 import { createRouteRegistry, fallback, route } from "@askrjs/askr/router";
 import { createAskrPageHandler } from "../src/askr/index";
 import { translateAskrPageResult } from "../src/askr/page-handler";
-import { json, text } from "../src/index";
+import { json, text } from "../src/http/index";
 import { createServerApp } from "./test-app";
 
 const user: AuthContext = {
@@ -21,13 +21,47 @@ const anonymous: AuthContext = {
 };
 
 describe("Askr page fallback", () => {
+  it.each([
+    { title: "ASCII title", lang: "en", encoded: false },
+    { title: "Café", lang: "fr", encoded: false },
+    { title: "日本語 🦉", lang: "ja", encoded: true },
+    { title: "English", lang: "日本語", encoded: true },
+    { title: `${"A".repeat(40_000)}🦉`, lang: "ja", encoded: true },
+  ])(
+    "preserves fragment metadata with UTF-8 encoding $encoded for language $lang",
+    async ({ title, lang, encoded }) => {
+      const registry = createRouteRegistry(() =>
+        route("/", () => "fragment", {
+          meta: { title, html: { lang, dir: "ltr" } },
+        }),
+      );
+      const response = await createServerApp({
+        fallback: createAskrPageHandler({ registry }),
+      }).fetch(new Request("https://askr.test/"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("x-askr-encoding")).toBe(encoded ? "base64url-v1" : null);
+      const readHeader = (name: string) => {
+        const value = response.headers.get(name)!;
+        if (encoded) {
+          expect(value).toMatch(/^[A-Za-z0-9_-]+$/u);
+          return Buffer.from(value, "base64url").toString("utf8");
+        }
+        return value;
+      };
+      expect(readHeader("x-askr-head")).toBe(`<title data-askr-head="">${title}</title>`);
+      expect(readHeader("x-askr-html-lang")).toBe(lang);
+      expect(readHeader("x-askr-html-dir")).toBe("ltr");
+      expect(await response.text()).toBe("fragment");
+    },
+  );
+
   it("should reject manifest-only page handler options at runtime", () => {
     expect(() => createAskrPageHandler({ manifest: {} } as never)).toThrow(
       "createAskrPageHandler requires a route registry.",
     );
   });
 
-  it("should expose the identical AuthContext to API SSR preload and page rendering", async () => {
+  it("should share one request auth context through SSR policy preload and rendering", async () => {
     let apiAuth: AuthContext | undefined;
     let requirementAuth: AuthContext | undefined;
     let preloadAuth: AuthContext | undefined;
@@ -43,6 +77,7 @@ describe("Askr page fallback", () => {
         },
         loader: (context) => {
           loaderAuth = context.auth;
+          return null;
         },
       });
     });
@@ -60,11 +95,15 @@ describe("Askr page fallback", () => {
       fallback: createAskrPageHandler({ registry }),
     });
     await app.fetch(new Request("http://example.test/api"));
-    await app.fetch(new Request("http://example.test/page"));
-    expect(apiAuth).toBe(user);
-    expect(requirementAuth).toBe(user);
-    expect(preloadAuth).toBe(user);
-    expect(loaderAuth).toBe(user);
+    const page = await app.fetch(new Request("http://example.test/page"));
+    expect(page.status).toBe(200);
+    expect(await page.text()).toContain("page");
+    expect(apiAuth).toEqual(user);
+    expect(requirementAuth).toEqual(user);
+    expect(apiAuth).not.toBe(requirementAuth);
+    expect(preloadAuth).toBe(requirementAuth);
+    expect(loaderAuth).toBe(requirementAuth);
+    expect(Object.hasOwn(user, "token")).toBe(false);
   });
 
   it("should avoid a second auth resolution during SSR", async () => {

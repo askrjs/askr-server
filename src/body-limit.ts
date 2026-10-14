@@ -58,38 +58,66 @@ export function readRequestBytes(
   request: Request,
   maximum = requestLimit(request),
 ): Promise<Uint8Array> {
+  validateMaxRequestBytes(maximum);
   rejectOversizedContentLength(request, maximum);
   const existing = bodies.get(request);
-  if (existing) return existing;
+  if (existing) {
+    const repeated = existing.then((bytes) => {
+      request.signal.throwIfAborted();
+      if (bytes.byteLength > maximum) throw new PayloadTooLargeError();
+      return bytes;
+    });
+    void repeated.catch(() => undefined);
+    return repeated;
+  }
   if (request.bodyUsed)
     return Promise.reject(new TypeError("Request body has already been consumed."));
   const pending = (async () => {
-    if (!request.body) return new Uint8Array();
+    if (!request.body) {
+      request.signal.throwIfAborted();
+      return new Uint8Array();
+    }
     const reader = request.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let length = 0;
-    try {
+    let rejectAbort!: (reason: unknown) => void;
+    const aborted = new Promise<never>((_resolve, reject) => {
+      rejectAbort = reject;
+    });
+    const abort = () => {
+      void reader.cancel(request.signal.reason).catch(() => undefined);
+      rejectAbort(request.signal.reason);
+    };
+    request.signal.addEventListener("abort", abort, { once: true });
+    if (request.signal.aborted) abort();
+    const consume = async () => {
+      request.signal.throwIfAborted();
+      const chunks: Uint8Array[] = [];
+      let length = 0;
       for (;;) {
         const { done, value } = await reader.read();
+        request.signal.throwIfAborted();
         if (done) break;
         length += value.byteLength;
         if (length > maximum) {
-          await reader.cancel().catch(() => undefined);
+          void reader.cancel().catch(() => undefined);
           throw new PayloadTooLargeError();
         }
         chunks.push(value);
       }
+      if (chunks.length === 1) return chunks[0]!;
+      const output = new Uint8Array(length);
+      let offset = 0;
+      for (const chunk of chunks) {
+        output.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return output;
+    };
+    try {
+      return await Promise.race([consume(), aborted]);
     } finally {
+      request.signal.removeEventListener("abort", abort);
       reader.releaseLock();
     }
-    if (chunks.length === 1) return chunks[0]!;
-    const output = new Uint8Array(length);
-    let offset = 0;
-    for (const chunk of chunks) {
-      output.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return output;
   })();
   // Mark the cached promise handled for host rejection tracking without changing what callers await.
   void pending.catch(() => undefined);

@@ -10,6 +10,9 @@ integration without depending on a particular runtime.
 Use `@askrjs/node` to run an application on Node.js, or provide another adapter for a different
 runtime.
 
+The 0.5 release candidate uses one canonical import path per contract. See
+[the complete API inventory and migration guide](docs/0.5.0-api.md).
+
 ## Install
 
 ```sh
@@ -60,7 +63,9 @@ callback's `finally`/cleanup path.
 ## Create an application
 
 ```ts
-import { createRouter, createServerApp, json } from "@askrjs/server";
+import { createServerApp } from "@askrjs/server";
+import { createRouter } from "@askrjs/server/router";
+import { json } from "@askrjs/server/http";
 
 const router = createRouter().get("/health", () => json({ status: "ok" }));
 const app = createServerApp(router);
@@ -78,6 +83,9 @@ to `createAskrApp()` and a callback-based CSP policy so the header, page
 renderer, deferred scripts, and runtime styles share one request nonce:
 
 ```ts
+import { createAskrApp } from "@askrjs/server/askr";
+import { createCspNonce, securityHeaders } from "@askrjs/server/middleware";
+
 const nonce = createCspNonce();
 
 const app = createAskrApp({
@@ -344,7 +352,8 @@ dependency injection, and OpenAPI metadata:
 
 ```ts
 import { requireUser } from "@askrjs/auth";
-import { createApi, schema, security } from "@askrjs/server/openapi";
+import { createApi, security } from "@askrjs/server/openapi";
+import { schema } from "@askrjs/schema";
 
 const api = createApi<AppDependencies>({
   info: { title: "Users API", version: "1.0.0" },
@@ -466,6 +475,21 @@ instructions to set or clear cookies. Redirects are validated before cookies
 are attached. Enhanced redirects are returned in the envelope so the browser
 can perform full-document navigation after updating action state and
 invalidations.
+
+A redirect target counts as a matched route when core `matchRoute` matches it.
+That includes paths that only a `fallback()` handles, such as
+`/l/en/missing` under `page("/l/{lang}")` with a scoped fallback. These
+redirects are accepted, and the response is the same as for any other
+redirect. They render that section's not-found view, so outside production
+(`NODE_ENV !== "production"`) the page handler logs one `console.warn` per
+action and target path, in case the target is a typo:
+
+```text
+[Askr] Action "save-item" redirected to "/l/en/missing", which matches only a fallback route, not a page. It will render that section's not-found view; the redirect target may be a typo.
+```
+
+Production neither logs nor checks for these. A redirect that matches no route,
+fallback included, still fails with `500 Action returned an invalid route redirect.`
 
 `ActionForm` is the native, server-driven primitive. `action().submit()` is the
 explicit client-driven primitive; forms are never intercepted automatically.

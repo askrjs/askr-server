@@ -1,4 +1,4 @@
-import { bench } from "vitest";
+import { bench } from "vite-plus/test";
 import type { ApiRoute } from "../src/contracts";
 import { createMatcher, type MatchResult } from "../src/router/matcher";
 
@@ -18,7 +18,7 @@ const methodMatcher = createMatcher([
   { path: "/items/{*path}", method: "POST", handler },
 ]);
 
-let sink: MatchResult;
+let sink: MatchResult | undefined;
 
 bench("match a static route", () => {
   sink = staticMatcher.match("/items/1023", "GET");

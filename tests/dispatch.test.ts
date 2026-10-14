@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import type { ApiRoute, Middleware } from "../src/contracts";
 import { anonymousAuthContext, createServerContext } from "../src/context";
 import { dispatchRequest, MiddlewareNextError, MiddlewareResponseError } from "../src/dispatch";

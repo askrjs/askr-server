@@ -1,4 +1,3 @@
-import type { AuthContext } from "@askrjs/auth";
 import type { ActionDescriptor } from "@askrjs/askr/actions";
 import type { RoutePolicy } from "@askrjs/askr/router";
 import type { Issue } from "@askrjs/schema";
@@ -34,7 +33,7 @@ export interface ActionHandlerContext {
   readonly request: Request;
   readonly url: URL;
   readonly params: Params;
-  readonly auth: AuthContext;
+  readonly auth: ServerContext["auth"];
   readonly policies: readonly RoutePolicy[];
   readonly signal: AbortSignal;
 }
@@ -55,7 +54,8 @@ export interface ActionExecutionOptions {
   readonly authorized: readonly ActionDescriptor[];
   readonly params: Params;
   readonly policies: readonly RoutePolicy[];
-  readonly allowsRedirect: (location: URL) => boolean;
+  /** Gates a same-origin redirect target; `action` is the ID of the action that returned it. */
+  readonly allowsRedirect: (location: URL, action: string) => boolean;
 }
 
 /** Result of {@link ActionRegistry.execute}: either a final response, or invalid-input details to re-render the page with. */

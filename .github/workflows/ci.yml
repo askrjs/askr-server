@@ -18,6 +18,11 @@ jobs:
     name: CI (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: server
+    env:
+      ASKR_AUTH_TARBALL: ${{ github.workspace }}/auth-artifact/askrjs-auth-0.5.0.tgz
     strategy:
       fail-fast: false
       matrix:
@@ -26,17 +31,43 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          path: server
+          persist-credentials: false
+
+      - name: Checkout accepted Auth engine fixture
+        uses: actions/checkout@v7
+        with:
+          repository: askrjs/askr-auth
+          ref: 2e371b337f087da3cbd69865ca89c2da0db15ac2
+          path: auth
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
           node-version: "lts/*"
           cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install Auth engine fixture dependencies
+        working-directory: auth
+        run: npm ci
+
+      - name: Pack Auth engine fixture with prepack
+        working-directory: auth
+        run: |
+          node -e "require('node:fs').mkdirSync(require('node:path').dirname(process.env.ASKR_AUTH_TARBALL), { recursive: true })"
+          npm pack --pack-destination "${{ github.workspace }}/auth-artifact"
+
       - name: Install dependencies
         run: npm ci
 
+      - name: Install accepted Auth engine fixture
+        run: npm install --no-save --package-lock=false "${{ env.ASKR_AUTH_TARBALL }}"
+
       - name: Install Chromium
-        if: ${{ hashFiles('vitest.test.browser.config.ts', 'playwright.config.*') != '' }}
+        if: ${{ hashFiles('server/vitest.test.browser.config.ts', 'server/playwright.config.*') != '' }}
         run: npx playwright install chromium
 
       - name: Format check

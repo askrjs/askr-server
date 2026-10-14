@@ -1,15 +1,7 @@
 import type { ServerContext } from "../contracts";
 import { contentType } from "../http/media-types";
 import type { ResponseDefinition } from "./types";
-
-function isDevelopment(): boolean {
-  const processLike = (
-    globalThis as {
-      process?: { env?: { NODE_ENV?: string } };
-    }
-  ).process;
-  return processLike?.env?.NODE_ENV !== "production";
-}
+import { isDevelopment } from "../development";
 
 export async function validateOperationResponse(
   enabled: boolean | undefined,

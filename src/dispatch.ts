@@ -10,12 +10,13 @@ import type {
 } from "./contracts";
 import { challenge, forbidden, methodNotAllowed, notFound } from "./http/responses";
 import type { MatchResult } from "./router/matcher";
+import { discardResponseBody } from "./response-body";
 
 export class MiddlewareNextError extends Error {
   readonly code = "middleware_next_reused";
 
   constructor() {
-    super("next() may only be called once per middleware invocation");
+    super("next() may only be called once while its middleware invocation is running");
     this.name = "MiddlewareNextError";
   }
 }
@@ -29,25 +30,48 @@ export class MiddlewareResponseError extends TypeError {
   }
 }
 
+function discardDownstream(pending: Promise<Response> | undefined, returned?: Response): void {
+  void pending?.then(
+    (response) => {
+      if (response instanceof Response && response !== returned && response.body !== returned?.body)
+        discardResponseBody(response);
+    },
+    () => {
+      // The middleware/terminal error path owns this rejection.
+    },
+  );
+}
+
 function runMiddleware(
   middleware: readonly Middleware[],
   context: ServerContext,
   terminal: Handler,
   onError?: (error: unknown, context: ServerContext) => Response | Promise<Response>,
 ): Promise<Response> {
-  let index = -1;
   const dispatch = async (nextIndex: number): Promise<Response> => {
+    let active = true;
+    let downstream: Promise<Response> | undefined;
     try {
-      if (nextIndex <= index) throw new MiddlewareNextError();
-      index = nextIndex;
       const current = middleware[nextIndex];
       if (!current) return await terminal(context);
-      const response = await current(context, () => dispatch(nextIndex + 1));
+      const result = current(context, () => {
+        if (!active || downstream) throw new MiddlewareNextError();
+        downstream = dispatch(nextIndex + 1);
+        void downstream.catch(() => undefined);
+        return downstream;
+      });
+      // A synchronous short circuit retires next() before queued microtasks can call it.
+      if (result instanceof Response) active = false;
+      const response = await result;
       if (!(response instanceof Response)) throw new MiddlewareResponseError();
+      discardDownstream(downstream, response);
       return response;
     } catch (error) {
+      discardDownstream(downstream);
       if (onError) return onError(error, context);
       throw error;
+    } finally {
+      active = false;
     }
   };
   return dispatch(0);
@@ -59,7 +83,12 @@ async function denial(
   onAccessDenied?: AccessDeniedHandler,
 ): Promise<Response | undefined> {
   if (decision.allowed) return undefined;
-  if (onAccessDenied) return onAccessDenied(decision, context);
+  if (onAccessDenied) {
+    const response = await onAccessDenied(decision, context);
+    if (!(response instanceof Response))
+      throw new TypeError("The access denial handler must return a Response");
+    return response;
+  }
   return decision.reason === "unauthenticated"
     ? challenge()
     : forbidden(decision.reason === "already_authenticated" ? "Already authenticated" : undefined);
@@ -109,6 +138,8 @@ async function runProbe(
   try {
     const result = handler ? await handler(context) : undefined;
     if (result instanceof Response) return result;
+    if (result !== undefined && typeof result !== "boolean")
+      throw new TypeError("A probe must return a boolean, Response, or undefined");
     return new Response(null, {
       status: result === false ? 503 : 200,
       headers: { "cache-control": "no-store" },
@@ -119,6 +150,7 @@ async function runProbe(
 }
 
 function withoutHeadBody(response: Response, request: Request): Response {
+  if (request.method === "HEAD") discardResponseBody(response);
   return request.method === "HEAD"
     ? new Response(null, {
         status: response.status,
@@ -164,7 +196,10 @@ export async function dispatchRequest(
 ): Promise<Response> {
   const terminal = async (): Promise<Response> => {
     try {
-      return await executeTerminal(found, options, context);
+      const response = await executeTerminal(found, options, context);
+      if (!(response instanceof Response))
+        throw new TypeError("A route or fallback handler must return a Response");
+      return response;
     } catch (error) {
       return options.errorResponse(error, context);
     }

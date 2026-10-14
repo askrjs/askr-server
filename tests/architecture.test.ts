@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { createMatcher } from "../src/router/matcher";
 
 const root = resolve(import.meta.dirname, "..");
@@ -110,7 +110,8 @@ describe("server architecture", () => {
       .join("\n");
     expect(publicEntries).not.toMatch(/\b(?:defineContext|readContext)\b/);
     expect(publicEntries).not.toMatch(/export[^\n]*\buse[A-Z][A-Za-z]+\b/);
-    expect(publicEntries).not.toMatch(/export[^\n]*\b[A-Z][A-Za-z]+Provider\b/);
+    // A CSP nonce provider is a typed callback, not a runtime context provider.
+    expect(publicEntries).not.toMatch(/export\s+(?!type\b)[^\n]*\b[A-Z][A-Za-z]+Provider\b/);
   });
 
   it("should keep context construction checked and CSRF rejection centralized", () => {
