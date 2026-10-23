@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createRouter } from "../src/router";
-import { bench, beforeAll } from "vite-plus/test";
+import { beforeAll, test } from "vite-plus/test";
 import { createServerApp, type Handler } from "../src/index";
 
 export function defineRouterScaleBench(tier: string, routeCount: number): void {
@@ -14,8 +14,11 @@ export function defineRouterScaleBench(tier: string, routeCount: number): void {
     assert.equal((await app.fetch(request)).status, 200);
   });
 
-  bench(`${tier}: dispatch through ${routeCount} static routes`, async () => {
-    await app.fetch(request);
+  const name = `${tier}: dispatch through ${routeCount} static routes`;
+  test(name, async ({ bench }) => {
+    await bench(name, async () => {
+      await app.fetch(request);
+    }).run();
   });
 }
 
@@ -30,8 +33,11 @@ export function defineDynamicRouterScaleBench(tier: string, routeCount: number):
     assert.equal((await app.fetch(request)).status, 200);
   });
 
-  bench(`${tier}: dispatch through ${routeCount} dynamic routes`, async () => {
-    await app.fetch(request);
+  const name = `${tier}: dispatch through ${routeCount} dynamic routes`;
+  test(name, async ({ bench }) => {
+    await bench(name, async () => {
+      await app.fetch(request);
+    }).run();
   });
 }
 
@@ -46,7 +52,10 @@ export function defineWildcardRouterScaleBench(tier: string, routeCount: number)
     assert.equal((await app.fetch(request)).status, 200);
   });
 
-  bench(`${tier}: dispatch through ${routeCount} wildcard routes`, async () => {
-    await app.fetch(request);
+  const name = `${tier}: dispatch through ${routeCount} wildcard routes`;
+  test(name, async ({ bench }) => {
+    await bench(name, async () => {
+      await app.fetch(request);
+    }).run();
   });
 }

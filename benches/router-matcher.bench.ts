@@ -1,4 +1,4 @@
-import { bench } from "vite-plus/test";
+import { test } from "vite-plus/test";
 import type { ApiRoute } from "../src/contracts";
 import { createMatcher, type MatchResult } from "../src/router/matcher";
 
@@ -20,20 +20,28 @@ const methodMatcher = createMatcher([
 
 let sink: MatchResult | undefined;
 
-bench("match a static route", () => {
-  sink = staticMatcher.match("/items/1023", "GET");
+test("match a static route", async ({ bench }) => {
+  await bench("match a static route", () => {
+    sink = staticMatcher.match("/items/1023", "GET");
+  }).run();
 });
 
-bench("match a dynamic route", () => {
-  sink = dynamicMatcher.match("/buckets/1023/object", "GET");
+test("match a dynamic route", async ({ bench }) => {
+  await bench("match a dynamic route", () => {
+    sink = dynamicMatcher.match("/buckets/1023/object", "GET");
+  }).run();
 });
 
-bench("match a wildcard route", () => {
-  sink = wildcardMatcher.match("/objects/1023/a/b/c.json", "GET");
+test("match a wildcard route", async ({ bench }) => {
+  await bench("match a wildcard route", () => {
+    sink = wildcardMatcher.match("/objects/1023/a/b/c.json", "GET");
+  }).run();
 });
 
-bench("collect allowed methods after a method miss", () => {
-  sink = methodMatcher.match("/items/fixed", "DELETE");
+test("collect allowed methods after a method miss", async ({ bench }) => {
+  await bench("collect allowed methods after a method miss", () => {
+    sink = methodMatcher.match("/items/fixed", "DELETE");
+  }).run();
 });
 
 void sink;
