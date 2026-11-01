@@ -4,13 +4,13 @@ import { createHash } from "node:crypto";
 import { lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
-import ts from "@typescript/typescript6";
-import ts7 from "typescript";
+import ts from "typescript";
 import { readPackRecord } from "./pack-result.js";
 
 const npmCli = process.env.npm_execpath;
 if (!npmCli) throw new Error("npm_execpath is unavailable; run this check through npm");
 const root = process.cwd();
+const ts7 = JSON.parse(await readFile(join(root, "node_modules/@typescript/native/package.json"), "utf8"));
 const npm = (args, options) => execFileSync(process.execPath, [npmCli, ...args], options);
 const manifest = JSON.parse(await readFile("package.json", "utf8"));
 const contract = JSON.parse(await readFile("tests/public-contract.json", "utf8"));
@@ -142,7 +142,7 @@ try {
   );
   execFileSync(
     process.execPath,
-    [join(root, "node_modules/typescript/bin/tsc"), "-p", "tsconfig.json"],
+    [join(root, "node_modules/@typescript/native/bin/tsc"), "-p", "tsconfig.json"],
     {
       cwd: directory,
       stdio: "pipe",
