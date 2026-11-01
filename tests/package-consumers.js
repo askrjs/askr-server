@@ -10,7 +10,9 @@ import { readPackRecord } from "./pack-result.js";
 const npmCli = process.env.npm_execpath;
 if (!npmCli) throw new Error("npm_execpath is unavailable; run this check through npm");
 const root = process.cwd();
-const ts7 = JSON.parse(await readFile(join(root, "node_modules/@typescript/native/package.json"), "utf8"));
+const ts7 = JSON.parse(
+  await readFile(join(root, "node_modules/@typescript/native/package.json"), "utf8"),
+);
 const npm = (args, options) => execFileSync(process.execPath, [npmCli, ...args], options);
 const manifest = JSON.parse(await readFile("package.json", "utf8"));
 const contract = JSON.parse(await readFile("tests/public-contract.json", "utf8"));
