@@ -5,6 +5,7 @@ import { lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import ts from "@typescript/typescript6";
+import ts7 from "typescript";
 import { readPackRecord } from "./pack-result.js";
 
 const npmCli = process.env.npm_execpath;
@@ -202,7 +203,7 @@ try {
       declarationNames: contract.candidateNames,
       removedOrMovedImports: contract.negativeImports.length,
       privateSubpaths: contract.privateSubpaths.length,
-      compilers: ["6.0.2", "7.0.2"],
+      compilers: [ts.version, ts7.version],
       ...(authArtifact ? { developmentAuth: authArtifact } : {}),
       runtime: [
         "HEAD disposal",

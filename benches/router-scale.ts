@@ -1,7 +1,21 @@
 import assert from "node:assert/strict";
 import { createRouter } from "../src/router";
-import { bench, beforeAll } from "vite-plus/test";
+import { test } from "vite-plus/test";
 import { createServerApp, type Handler } from "../src/index";
+
+function registerRouterScaleBench(
+  name: string,
+  app: ReturnType<typeof createServerApp>,
+  request: Request,
+): void {
+  test(name, async ({ bench }) => {
+    assert.equal((await app.fetch(request)).status, 200);
+
+    await bench(name, async () => {
+      await app.fetch(request);
+    }).run();
+  });
+}
 
 export function defineRouterScaleBench(tier: string, routeCount: number): void {
   const handler: Handler = (context) => context.ok({ ok: true });
@@ -10,13 +24,7 @@ export function defineRouterScaleBench(tier: string, routeCount: number): void {
   const app = createServerApp(router);
   const request = new Request(`http://example.test/items/${routeCount - 1}`);
 
-  beforeAll(async () => {
-    assert.equal((await app.fetch(request)).status, 200);
-  });
-
-  bench(`${tier}: dispatch through ${routeCount} static routes`, async () => {
-    await app.fetch(request);
-  });
+  registerRouterScaleBench(`${tier}: dispatch through ${routeCount} static routes`, app, request);
 }
 
 export function defineDynamicRouterScaleBench(tier: string, routeCount: number): void {
@@ -26,13 +34,7 @@ export function defineDynamicRouterScaleBench(tier: string, routeCount: number):
   const app = createServerApp(router);
   const request = new Request(`http://example.test/buckets/${routeCount - 1}/object`);
 
-  beforeAll(async () => {
-    assert.equal((await app.fetch(request)).status, 200);
-  });
-
-  bench(`${tier}: dispatch through ${routeCount} dynamic routes`, async () => {
-    await app.fetch(request);
-  });
+  registerRouterScaleBench(`${tier}: dispatch through ${routeCount} dynamic routes`, app, request);
 }
 
 export function defineWildcardRouterScaleBench(tier: string, routeCount: number): void {
@@ -42,11 +44,5 @@ export function defineWildcardRouterScaleBench(tier: string, routeCount: number)
   const app = createServerApp(router);
   const request = new Request(`http://example.test/objects/${routeCount - 1}/a/b/c.json`);
 
-  beforeAll(async () => {
-    assert.equal((await app.fetch(request)).status, 200);
-  });
-
-  bench(`${tier}: dispatch through ${routeCount} wildcard routes`, async () => {
-    await app.fetch(request);
-  });
+  registerRouterScaleBench(`${tier}: dispatch through ${routeCount} wildcard routes`, app, request);
 }
