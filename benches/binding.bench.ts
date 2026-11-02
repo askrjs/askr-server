@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createRouter } from "../src/router";
-import { bench } from "vite-plus/test";
+import { test } from "vite-plus/test";
 import { createServerApp } from "../src/application";
 import { bind } from "../src/binding";
 
@@ -28,18 +28,22 @@ const queryRequest = new Request(
 );
 const queryUrl = new URL(queryRequest.url);
 
-bench("merge route and query without dispatch", async () => {
-  sink = await bind({
-    request: queryRequest,
-    params: { id: "42" },
-    url: queryUrl,
-    query: queryUrl.searchParams,
-  });
+test("merge route and query without dispatch", async ({ bench }) => {
+  await bench("merge route and query without dispatch", async () => {
+    sink = await bind({
+      request: queryRequest,
+      params: { id: "42" },
+      url: queryUrl,
+      query: queryUrl.searchParams,
+    });
+  }).run();
 });
 
-bench("bind route and query values", async () => {
-  await app.fetch(queryRequest);
-  void sink;
+test("bind route and query values", async ({ bench }) => {
+  await bench("bind route and query values", async () => {
+    await app.fetch(queryRequest);
+    void sink;
+  }).run();
 });
 
 const repeatedQuery = new URLSearchParams();
@@ -48,29 +52,35 @@ const repeatedQueryRequest = new Request(`http://example.test/items/42?${repeate
   method: "POST",
 });
 
-bench("bind 32 repeated query values", async () => {
-  await app.fetch(repeatedQueryRequest);
-  void sink;
+test("bind 32 repeated query values", async ({ bench }) => {
+  await bench("bind 32 repeated query values", async () => {
+    await app.fetch(repeatedQueryRequest);
+    void sink;
+  }).run();
 });
 
-bench("bind a JSON request", async () => {
-  await app.fetch(
-    new Request("http://example.test/items/42?view=full", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-request-id": "request-1" },
-      body: '{"name":"Ada","active":true,"roles":["admin","editor"]}',
-    }),
-  );
-  void sink;
+test("bind a JSON request", async ({ bench }) => {
+  await bench("bind a JSON request", async () => {
+    await app.fetch(
+      new Request("http://example.test/items/42?view=full", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-request-id": "request-1" },
+        body: '{"name":"Ada","active":true,"roles":["admin","editor"]}',
+      }),
+    );
+    void sink;
+  }).run();
 });
 
-bench("bind a URL-encoded form request", async () => {
-  await app.fetch(
-    new Request("http://example.test/items/42?view=full", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: "name=Ada&role=admin&role=editor&active=true",
-    }),
-  );
-  void sink;
+test("bind a URL-encoded form request", async ({ bench }) => {
+  await bench("bind a URL-encoded form request", async () => {
+    await app.fetch(
+      new Request("http://example.test/items/42?view=full", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "name=Ada&role=admin&role=editor&active=true",
+      }),
+    );
+    void sink;
+  }).run();
 });

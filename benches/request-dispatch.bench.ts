@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createRouter } from "../src/router";
-import { bench } from "vite-plus/test";
+import { test } from "vite-plus/test";
 import { createServerApp } from "../src/index";
 
 const app = createServerApp(createRouter().get("/health", (ctx) => ctx.ok({ ok: true })));
@@ -18,14 +18,20 @@ for (const [target, status] of [
   assert.equal((await target.fetch(new Request("http://example.test/health"))).status, status);
 const request = new Request("http://example.test/health");
 
-bench("dispatch a server request", async () => {
-  await app.fetch(new Request("http://example.test/health"));
+test("dispatch a server request", async ({ bench }) => {
+  await bench("dispatch a server request", async () => {
+    await app.fetch(new Request("http://example.test/health"));
+  }).run();
 });
 
-bench("dispatch a prebuilt response", async () => {
-  await prebuiltResponseApp.fetch(request);
+test("dispatch a prebuilt response", async ({ bench }) => {
+  await bench("dispatch a prebuilt response", async () => {
+    await prebuiltResponseApp.fetch(request);
+  }).run();
 });
 
-bench("dispatch through two middleware", async () => {
-  await middlewareApp.fetch(request);
+test("dispatch through two middleware", async ({ bench }) => {
+  await bench("dispatch through two middleware", async () => {
+    await middlewareApp.fetch(request);
+  }).run();
 });
