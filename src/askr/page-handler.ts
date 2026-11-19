@@ -119,7 +119,7 @@ export async function translateAskrPageResult(
   const renderStatus =
     "status" in result && typeof result.status === "number" ? result.status : undefined;
   return new Response(carrier ? prependBody(carrier, body) : body, {
-    status: renderStatus === 200 && status === 422 ? 422 : (renderStatus ?? status),
+    status: renderStatus ?? status,
     headers,
   });
 }
