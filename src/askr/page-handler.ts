@@ -116,7 +116,12 @@ export async function translateAskrPageResult(
   }
   const carrier = styleCarrier(result.styles, cspNonce);
   const body = result.stream ?? result.html;
-  return new Response(carrier ? prependBody(carrier, body) : body, { status, headers });
+  const renderStatus =
+    "status" in result && typeof result.status === "number" ? result.status : undefined;
+  return new Response(carrier ? prependBody(carrier, body) : body, {
+    status: renderStatus === 200 && status === 422 ? 422 : (renderStatus ?? status),
+    headers,
+  });
 }
 
 // Development warnings are deduplicated per action and target; the set is
