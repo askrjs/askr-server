@@ -269,16 +269,25 @@ describe("server telemetry", () => {
     }).fetch(new Request("http://example.test/catalog/42"));
 
     expect(response.status).toBe(200);
-    expect(lifecycle(recorder.records)).toEqual([
+    const events = lifecycle(recorder.records);
+    // Supported core versions may overlap prefetch and loader execution.
+    for (const span of ["askr.query.prefetch", "askr.loader"]) {
+      expect(events.filter((event) => event.endsWith(span))).toEqual([
+        `start:${span}`,
+        `end:${span}`,
+      ]);
+    }
+    expect(
+      events
+        .slice(5, 9)
+        .every((event) => event.endsWith("askr.query.prefetch") || event.endsWith("askr.loader")),
+    ).toBe(true);
+    expect([...events.slice(0, 5), ...events.slice(9)]).toEqual([
       "start:askr.request",
       "start:askr.route.match",
       "end:askr.route.match",
       "start:askr.ssr.render",
       "start:askr.route.match",
-      "start:askr.query.prefetch",
-      "end:askr.query.prefetch",
-      "start:askr.loader",
-      "end:askr.loader",
       "end:askr.route.match",
       "end:askr.ssr.render",
       "end:askr.request",
