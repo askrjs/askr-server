@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { lstat, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 import { readPackRecord } from "./pack-result.js";
 
 const npmCli = process.env.npm_execpath;
