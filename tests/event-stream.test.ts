@@ -154,4 +154,25 @@ describe("server-sent events", () => {
     expect((await third).done).toBe(true);
     vi.useRealTimers();
   });
+
+  it("should reject an accepted send that is waiting when the stream closes", async () => {
+    const events = createEventStream({ highWaterMark: 1 });
+    await events.send({ data: "first" });
+    const pending = events.send({ data: "second" });
+    let settled = false;
+    void pending.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await events.close();
+    await expect(pending).rejects.toMatchObject({ name: "InvalidStateError" });
+    await expect(events.closed).resolves.toBeUndefined();
+  });
 });
