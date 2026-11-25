@@ -412,14 +412,20 @@ describe("router", () => {
 
   it("should register route options after the handler", async () => {
     const router = createRouter();
-    router.get("/admin/{id}", ({ params }) => json(params), { auth: requireRole("admin") });
+    const handler = vi.fn(() => text("called"));
+    router.get("/admin/{id}", handler, { auth: requireRole("admin") });
     const app = createServerApp({
       router,
-      auth: { resolve: async () => authenticated },
+      auth: {
+        resolve: async () => ({
+          ...authenticated,
+          principal: { id: "user-1", roles: ["member"] },
+        }),
+      },
     });
-    await expect(
-      (await app.fetch(new Request("http://example.test/admin/42"))).json(),
-    ).resolves.toEqual({ id: "42" });
+    const response = await app.fetch(new Request("http://example.test/admin/42"));
+    expect(response.status).toBe(403);
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it("should support method helpers without implementation classes", async () => {
