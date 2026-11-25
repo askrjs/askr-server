@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v7.0.1
         with:
           repository: askrjs/askr-auth
-          ref: 2e371b337f087da3cbd69865ca89c2da0db15ac2
+          ref: df399e67f954d15bea136190a7ca76a876acff3f
           path: auth
           persist-credentials: false
 
