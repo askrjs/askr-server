@@ -147,7 +147,7 @@ try {
     [join(root, "node_modules/@typescript/native/bin/tsc"), "-p", "tsconfig.json"],
     {
       cwd: directory,
-      stdio: "pipe",
+      stdio: "inherit",
     },
   );
   const program = ts.createProgram([fixturePath], {
