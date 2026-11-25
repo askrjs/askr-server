@@ -30,21 +30,21 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           path: server
           persist-credentials: false
 
       - name: Checkout accepted Auth engine fixture
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           repository: askrjs/askr-auth
-          ref: 2e371b337f087da3cbd69865ca89c2da0db15ac2
+          ref: 430d026781cde30846f2dc30acd4c83bc0cd0b50
           path: auth
           persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v7.1.0
         with:
           node-version: "lts/*"
           cache: npm
