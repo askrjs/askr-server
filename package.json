@@ -1,6 +1,6 @@
 {
   "name": "@askrjs/server",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Transport-neutral HTTP application core built on Web Request and Response",
   "keywords": [
     "askr",
